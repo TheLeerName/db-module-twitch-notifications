@@ -5,13 +5,13 @@ export interface ConfigJSON {
 	twitchAccessToken: string,
 }
 
-export interface ConfigEntry {
+export interface GuildData {
 	commandChannelID: string | null;
 	discordCategoryID: string;
-	channels: string[];
+	channels: Map<string, ChannelData>;
 }
 
-export interface BotData {
+export interface ChannelData {
 	discordChannelID: string;
 	discordMessageID: string | null;
 	twitchChannelID: string;

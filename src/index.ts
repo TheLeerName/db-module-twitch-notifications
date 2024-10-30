@@ -6,7 +6,7 @@ const configJSON : Twitch.ConfigJSON = JSON.parse(fs.readFileSync('config.json')
 
 const client = new Discord.Client<true>({
 	failIfNotExists: false,
-	intents: [Discord.IntentsBitField.Flags.GuildMessages, Discord.IntentsBitField.Flags.Guilds, Discord.IntentsBitField.Flags.GuildVoiceStates],
+	intents: [Discord.IntentsBitField.Flags.GuildMessages, Discord.IntentsBitField.Flags.MessageContent, Discord.IntentsBitField.Flags.Guilds],
 	presence: {
 		activities: [
 			{
@@ -17,8 +17,7 @@ const client = new Discord.Client<true>({
 	},
 });
 
-var config: Map<string, Twitch.ConfigEntry> = new Map();
-var customData: Map<string, Map<string, Twitch.BotData>> = new Map();
+var globalData: Map<string, Twitch.GuildData> = new Map();
 
 const twitchIcon = "https://pngimg.com/d/twitch_PNG13.png";
 var fetchURL = "https://api.twitch.tv/helix/streams?";
@@ -32,9 +31,8 @@ client.on('warn', (m) => console.log(`\x1b[33m${m}\x1b[0m`));
 client.on('error', (m) => console.log(`\x1b[31m${m}\x1b[0m`));
 
 async function guildCreate(guild : Discord.Guild) {
-	const prevConfig = config.get(guild.id);
-
-	var cat = prevConfig != null ? guild.channels.cache.get(prevConfig.discordCategoryID) : null;
+	const prevGuildData = globalData.get(guild.id);
+	var cat = prevGuildData != null ? guild.channels.cache.get(prevGuildData.discordCategoryID) : null;
 	if (cat == null) {
 		cat = await guild.channels.create({
 			name: 'оповещения о стримах',
@@ -43,21 +41,17 @@ async function guildCreate(guild : Discord.Guild) {
 		console.log(`\x1b[36mCreating new discord category\x1b[0m\n\tguildName: \x1b[32m"${guild.name}"\x1b[0m`);
 	}
 
-	config.set(guild.id, {
-		commandChannelID: prevConfig?.commandChannelID || null,
-		discordCategoryID: prevConfig?.discordCategoryID || cat.id,
-		channels: prevConfig?.channels || []
+	globalData.set(guild.id, {
+		commandChannelID: prevGuildData?.commandChannelID || null,
+		discordCategoryID: prevGuildData?.discordCategoryID || cat.id,
+		channels: prevGuildData?.channels || new Map()
 	});
-	saveConfig();
-	customData.set(guild.id, new Map());
 	saveData();
 }
 client.on("guildCreate", guildCreate);
 
 client.on("guildDelete", async (guild : Discord.Guild) => {
-	config.delete(guild.id);
-	saveConfig();
-	customData.delete(guild.id);
+	globalData.delete(guild.id);
 	saveData();
 });
 
@@ -67,11 +61,11 @@ client.on("messageCreate", async (message : Discord.Message) => {
 		return;
 	}
 
-	var guildData = config.get(message.guild.id);
+	var guildData = globalData.get(message.guild.id);
 	if (guildData == null) {
 		console.log('где конфиг сервера блять? ща создам новый');
 		await guildCreate(message.guild);
-		guildData = config.get(message.guild.id);
+		guildData = globalData.get(message.guild.id);
 	}
 	if (guildData == null) {
 		console.log('пиздец. не получилось.');
@@ -80,9 +74,6 @@ client.on("messageCreate", async (message : Discord.Message) => {
 
 	if (!(message.author.id != client.user?.id) || (guildData.commandChannelID != null && guildData.commandChannelID != message.channel.id)) return;
 
-	const guildCustomData = customData.get(message.guild.id);
-	if (!guildCustomData) return;
-
 	var content = message.content;
 	if (content.startsWith('йода ')) {
 	content = content.substring(5, content.length);
@@ -90,203 +81,181 @@ client.on("messageCreate", async (message : Discord.Message) => {
 		content = content.substring('твич уведомления '.length, content.length);
 		console.log(`\x1b[36mGot twitch command\x1b[0m\n\tcontent: \x1b[32m"${content}"\x1b[0m`);
 		if (content.startsWith('добавь канал ')) {
-		content = content.substring('добавь канал '.length, content.length);
-		const channelName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
+			content = content.substring('добавь канал '.length, content.length);
+			const channelName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
 
-		if (guildCustomData.get(channelName)) {
-			await message.reply('Канал этот добавляли уже вы.');
-			return;
-		}
+			if (guildData.channels.get(channelName)) {
+				await message.reply('Канал этот добавляли уже вы.');
+				return;
+			}
 
-		const userData = (await getHelixUsersResponse('login=' + channelName)).get(channelName);
-		if (userData == null) {
-			await message.reply('Канал не существует такой.');
-			return;
-		}
+			const userData = (await getHelixUsersResponse('login=' + channelName)).get(channelName);
+			if (userData == null) {
+				await message.reply('Канал не существует такой.');
+				return;
+			}
 
-		const ch = await createDiscordNotificationChannel(message.guild.id, channelName);
-		if (ch == null) {
-			await message.reply('Не смог создать канал я.');
-			return;
-		}
+			const ch = await createDiscordNotificationChannel(message.guild.id, channelName);
+			if (ch == null) {
+				await message.reply('Не смог создать канал я.');
+				return;
+			}
 
-		const newData : Twitch.BotData = {
-			live: false,
-			prevLive: false,
-			discordChannelID: ch.id,
-			discordMessageID: null,
-			twitchChannelID: userData.id,
-			avatar: null,
-			games: [],
+			const newData : Twitch.ChannelData = {
+				live: false,
+				prevLive: false,
+				discordChannelID: ch.id,
+				discordMessageID: null,
+				twitchChannelID: userData.id,
+				avatar: null,
+				games: [],
 
-			triesToGetVOD: 0,
-			vodData: null
-		};
-		guildCustomData.set(channelName, newData);
-		saveData();
+				triesToGetVOD: 0,
+				vodData: null
+			};
+			guildData.channels.set(channelName, newData);
+			saveData();
 
-		await message.reply(`Успешно добавлен был **${channelName}** канал.\nУведомление будет на стриме следующем только, говорю тебе я.`);
-		}
-		if (content.startsWith('принудительно удали канал ')) {
-		content = content.substring('принудительно удали канал '.length, content.length);
-		const channelName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
-
-		const entry = guildCustomData.get(channelName);
-		if (!entry) {
-			await message.reply('Не был добавлен канал таков.');
-			return;
-		}
-
-		client.channels.cache.get(entry.discordChannelID)?.delete();
-
-		guildCustomData.delete(channelName);
-		saveData();
-
-		await message.reply(`Успешно удалён был **${channelName}** канал, говорю тебе я.`);
+			await message.reply(`Успешно добавлен был **${channelName}** канал.\nУведомление будет на стриме следующем только, говорю тебе я.`);
 		}
 		if (content.startsWith('удали канал ')) {
-		content = content.substring('удали канал '.length, content.length);
-		const channelName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
+			content = content.substring('удали канал '.length, content.length);
+			const channelName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
 
-		if (!guildCustomData.get(channelName)) {
-			await message.reply('Не был добавлен канал таков.');
-			return;
+			const entry = guildData.channels.get(channelName);
+			if (!entry) {
+				await message.reply('Не был добавлен канал таков.');
+				return;
+			}
+
+			client.channels.cache.get(entry.discordChannelID)?.delete();
+
+			guildData.channels.delete(channelName);
+			saveData();
+
+			await message.reply(`Успешно удалён был **${channelName}** канал, говорю тебе я.`);
+			}
+			if (content.startsWith('удали канал ')) {
+			content = content.substring('удали канал '.length, content.length);
+			const channelName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
+
+			if (!guildData.channels.get(channelName)) {
+				await message.reply('Не был добавлен канал таков.');
+				return;
+			}
+
+			guildData.channels.delete(channelName);
+			saveData();
+
+			await message.reply(`Успешно удалён был **${channelName}** канал, говорю тебе я.`);
 		}
 
-		guildCustomData.delete(channelName);
-		saveData();
+		if (content.startsWith('измени параметр сервера ')) {
+			content = content.substring('измени параметр сервера '.length, content.length);
+			var paramName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
+			var values : any = content.substring(paramName.length + ' на '.length, content.length);
+			values = values.substring(0, values.includes(' ') ? values.indexOf(' ') : values.length);
+			if (values == 'null') values = null;
+			if (values.startsWith('[') && values.endsWith(']')) values = JSON.parse(values);
 
-		await message.reply(`Успешно удалён был **${channelName}** канал, говорю тебе я.`);
-		}
-		if (content.startsWith('измени глобальный параметр ')) {
-		content = content.substring('измени глобальный параметр '.length, content.length);
-		var paramName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
-		var values : any = content.substring(paramName.length + ' на '.length, content.length);
-		values = values.substring(0, values.includes(' ') ? values.indexOf(' ') : values.length);
-		if (values == 'null') values = null;
-		if (values.startsWith('[') && values.endsWith(']')) values = JSON.parse(values);
+			var arrayPos : number | null = paramName.endsWith(']') ? parseInt(paramName.substring(paramName.indexOf('[') + 1, paramName.indexOf(']'))) : null;
 
-		var arrayPos : number | null = paramName.endsWith(']') ? parseInt(paramName.substring(paramName.indexOf('[') + 1, paramName.indexOf(']'))) : null;
+			var displayParamName = paramName;
+			if (arrayPos != null) paramName = paramName.substring(0, paramName.indexOf('['));
 
-		var displayParamName = paramName;
-		if (arrayPos != null) paramName = paramName.substring(0, paramName.indexOf('['));
+			var prevValue = Reflect.get(guildData, paramName);
+			if (!Reflect.has(guildData, paramName)) {
+				await message.reply('Параметра нет такого.');
+				return;
+			}
 
-		var prevValue = Reflect.get(guildData, paramName);
-		if (!Reflect.has(guildData, paramName)) {
-			await message.reply('Параметра нет такого.');
-			return;
-		}
+			var prevValue = null;
+			if (arrayPos != null) {
+				var obj = Reflect.get(guildData, paramName);
+				prevValue = obj[arrayPos];
+				obj[arrayPos] = values;
+				Reflect.set(guildData, paramName, obj);
+			} else {
+				prevValue = Reflect.get(guildData, paramName);
+				Reflect.set(guildData, paramName, values);
+			}
+			saveData();
 
-		var prevValue = null;
-		if (arrayPos != null) {
-			var obj = Reflect.get(guildData, paramName);
-			prevValue = obj[arrayPos];
-			obj[arrayPos] = values;
-			Reflect.set(guildData, paramName, obj);
-		} else {
-			prevValue = Reflect.get(guildData, paramName);
-			Reflect.set(guildData, paramName, values);
-		}
-		saveConfig();
-
-		await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON.stringify(prevValue)}\` на \`${JSON.stringify(values)}\` значение, рассказываю тебе я.`);
-		}
-		if (content.startsWith('отправь глобальный конфиг')) {
-		content = content.substring('отправь глобальный конфиг'.length, content.length);
-
-		await message.reply("Глобальный конфиг таков, рассказываю тебе я.\n```json\n" + JSON.stringify(guildData, null, '\t') + "\n```");
-		}
-		if (content.startsWith('отправь глобальный параметр ')) {
-		content = content.substring('отправь глобальный параметр '.length, content.length);
-		var paramName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
-
-		if (!Reflect.has(guildData, paramName)) {
-			await message.reply('Параметра нет такого.');
-			return;
-		}
-
-		await message.reply(`\`${paramName}\` параметр равен значению \`${Reflect.get(guildData, paramName)}\`, рассказываю тебе я.`);
+			await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON.stringify(prevValue)}\` на \`${JSON.stringify(values)}\` значение, рассказываю тебе я.`);
 		}
 		if (content.startsWith('измени параметр ')) {
-		content = content.substring('измени параметр '.length, content.length);
-		var paramName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
-		var channelName = content.substring(paramName.length + ' канала '.length, content.length);
-		channelName = channelName.substring(0, channelName.includes(' ') ? channelName.indexOf(' ') : channelName.length);
-		var values : any = content.substring(paramName.length + ' канала '.length + channelName.length + ' на '.length, content.length);
-		values = values.substring(0, values.includes(' ') ? values.indexOf(' ') : values.length);
-		if (values == 'null') values = null;
-		if (values.startsWith('[') && values.endsWith(']')) values = JSON.parse(values);
+			content = content.substring('измени параметр '.length, content.length);
+			var paramName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
+			var channelName = content.substring(paramName.length + ' канала '.length, content.length);
+			channelName = channelName.substring(0, channelName.includes(' ') ? channelName.indexOf(' ') : channelName.length);
+			var values : any = content.substring(paramName.length + ' канала '.length + channelName.length + ' на '.length, content.length);
+			values = values.substring(0, values.includes(' ') ? values.indexOf(' ') : values.length);
+			if (values == 'null') values = null;
+			if (values.startsWith('[') && values.endsWith(']')) values = JSON.parse(values);
 
-		var arrayPos : number | null = paramName.endsWith(']') ? parseInt(paramName.substring(paramName.indexOf('[') + 1, paramName.indexOf(']'))) : null;
+			var arrayPos : number | null = paramName.endsWith(']') ? parseInt(paramName.substring(paramName.indexOf('[') + 1, paramName.indexOf(']'))) : null;
 
-		var displayParamName = paramName;
-		if (arrayPos != null) paramName = paramName.substring(0, paramName.indexOf('['));
+			var displayParamName = paramName;
+			if (arrayPos != null) paramName = paramName.substring(0, paramName.indexOf('['));
 
-		const data = guildCustomData.get(channelName);
-		if (data == null) {
-			await message.reply('Не был добавлен канал таков.');
-			return;
+			const data = guildData.channels.get(channelName);
+			if (data == null) {
+				await message.reply('Не был добавлен канал таков.');
+				return;
+			}
+
+			if (!Reflect.has(data, paramName)) {
+				await message.reply('Параметра нет такого.');
+				return;
+			}
+
+			var prevValue = null;
+			if (arrayPos != null) {
+				var obj : any = Reflect.get(data, paramName);
+				prevValue = obj[arrayPos];
+				obj[arrayPos] = values;
+				Reflect.set(data, paramName, obj);
+			} else {
+				prevValue = Reflect.get(data, paramName);
+				Reflect.set(data, paramName, values);
+			}
+			saveData();
+
+			await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON.stringify(prevValue)}\` на \`${JSON.stringify(values)}\` значение, рассказываю тебе я.`);
 		}
 
-		if (!Reflect.has(data, paramName)) {
-			await message.reply('Параметра нет такого.');
-			return;
-		}
-
-		var prevValue = null;
-		if (arrayPos != null) {
-			var obj : any = Reflect.get(data, paramName);
-			prevValue = obj[arrayPos];
-			obj[arrayPos] = values;
-			Reflect.set(data, paramName, obj);
-		} else {
-			prevValue = Reflect.get(data, paramName);
-			Reflect.set(data, paramName, values);
-		}
-		saveData();
-
-		await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON.stringify(prevValue)}\` на \`${JSON.stringify(values)}\` значение, рассказываю тебе я.`);
-		}
-		if (content.startsWith('отправь конфиг ')) {
-		content = content.substring('отправь конфиг '.length, content.length);
-		var channelName = content.substring('канала '.length, content.length);
-
-		const data = guildCustomData.get(channelName);
-		if (data == null) {
-			await message.reply('Не был добавлен канал таков.');
-			return;
-		}
-
-		await message.reply("Конфиг таков, рассказываю тебе я.\n```json\n" + JSON.stringify(data, null, '\t') + "\n```");
+		if (content.startsWith('отправь конфиг')) {
+			content = content.substring('отправь конфиг'.length, content.length);
+			await message.reply("Конфиг таков, рассказываю тебе я.\n```json\n" + JSON.stringify(guildDataToObj(guildData), null, '\t') + "\n```");
 		}
 		if (content.startsWith('отправь параметр ')) {
-		content = content.substring('отправь параметр '.length, content.length);
-		var paramName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
-		var channelName = content.substring(paramName.length + ' канала '.length, content.length);
-		channelName = channelName.substring(0, channelName.includes(' ') ? channelName.indexOf(' ') : channelName.length);
+			content = content.substring('отправь параметр '.length, content.length);
+			var paramName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
+			var channelName = content.substring(paramName.length + ' канала '.length, content.length);
+			channelName = channelName.substring(0, channelName.includes(' ') ? channelName.indexOf(' ') : channelName.length);
 
-		const data = guildCustomData.get(channelName);
-		if (!data) {
-			await message.reply('Не был добавлен канал таков.');
-			return;
-		}
+			const data = guildData.channels.get(channelName);
+			if (!data) {
+				await message.reply('Не был добавлен канал таков.');
+				return;
+			}
 
-		if (!Reflect.has(data, paramName)) {
-			await message.reply('Параметра нет такого.');
-			return;
-		}
+			if (!Reflect.has(data, paramName)) {
+				await message.reply('Параметра нет такого.');
+				return;
+			}
 
-		await message.reply(`\`${paramName}\` параметр равен значению \`${Reflect.get(data, paramName)}\`, рассказываю тебе я.`);
+			await message.reply(`\`${paramName}\` параметр равен значению \`${Reflect.get(data, paramName)}\`, рассказываю тебе я.`);
 		}
 		if (content.startsWith('разреши команды только здесь')) {
-		guildData.commandChannelID = message.channel.id;
-		saveConfig();
-		await message.reply(`Команды твич уведомлений разрешены теперь здесь только, рассказываю тебе я.`);
+			guildData.commandChannelID = message.channel.id;
+			saveData();
+			await message.reply(`Команды твич уведомлений разрешены теперь здесь только, рассказываю тебе я.`);
 		}
 		if (content.startsWith('разреши команды везде')) {
-		guildData.commandChannelID = null;
-		saveConfig();
-		await message.reply(`Команды твич уведомлений разрешены везде теперь, рассказываю тебе я.`);
+			guildData.commandChannelID = null;
+			saveData();
+			await message.reply(`Команды твич уведомлений разрешены везде теперь, рассказываю тебе я.`);
 		}
 	}
 	}
@@ -295,14 +264,11 @@ client.on("messageCreate", async (message : Discord.Message) => {
 client.on("ready", async () => {
 	//console.log(`\x1b[36mInvite link:\x1b[0m\n\turl: \x1b[32m"${generateInviteUrl()}"\x1b[0m`);
 
-	loadConfig();
 	loadData();
 
 	var fetchChannelsID: string[] = [];
-	for (let [guildID, guildData] of config) {
-		const guildCustomData = customData.get(guildID);
-		if (!guildCustomData) continue;
-		for (let [channelName, data] of guildCustomData)
+	for (let [guildID, guildData] of globalData) {
+		for (let [channelName, data] of guildData.channels)
 			if (!fetchChannelsID.includes(data.twitchChannelID))
 				fetchChannelsID.push(data.twitchChannelID);
 	}
@@ -325,69 +291,56 @@ function generateInviteUrl(): string {
 	});
 }
 
-function loadConfig() : boolean {
-	if (!fs.existsSync('twitchChannelsConfig.json')) return false;
-	const data1 = JSON.parse(fs.readFileSync('twitchChannelsConfig.json').toString());
+function mapToObj(map : Map<string, any>) : any {
+	const obj : any = {};
+	for (let [k,v] of map)
+		obj[k] = v;
+	return obj;
+}
 
-	for (let guildID of Object.keys(data1))
-		config.set(guildID, data1[guildID]);
+function guildDataToObj(guildData : Twitch.GuildData) : any {
+	const channels = new Map();
+	for (let [k, v] of guildData.channels)
+		channels.set(k, {
+			discordChannelID: v.discordChannelID,
+			discordMessageID: v.discordMessageID,
+			twitchChannelID: v.twitchChannelID,
+			avatar: v.avatar,
+			games: v.games,
+			triesToGetVOD: v.triesToGetVOD,
+			vodData: v.vodData
+		});
+
+	return {
+		commandChannelID: guildData.commandChannelID,
+		discordCategoryID: guildData.discordCategoryID,
+		channels: mapToObj(channels)
+	};
+}
+
+function loadData() : boolean {
+	if (!fs.existsSync('guildData.json')) return false;
+	const data1 = JSON.parse(fs.readFileSync('guildData.json').toString());
+
+	for (let guildID of Object.keys(data1)) {
+		const guildData = data1[guildID];
+		const newGuildData : Twitch.GuildData = {
+			commandChannelID: guildData.commandChannelID,
+			discordCategoryID: guildData.discordCategoryID,
+			channels: new Map(Object.entries(guildData.channels))
+		};
+		globalData.set(guildID, newGuildData);
+	}
 
 	return true;
 }
-function saveConfig() {
-	var json : any = {};
-	for (let [guildID, guildData] of config)
-		json[guildID] = guildData;
-
-	fs.writeFileSync('twitchChannelsConfig.json', JSON.stringify(json, null, '\t'));
-}
 
 function saveData() {
-	const json : any = {};
-	for (let [guildID, curData] of customData) {
-		if (curData == null) continue;
-		const channelData : any = {};
-		for (let [channelName, entry] of curData) {
-		channelData[channelName] = {
-			discordChannelID: entry.discordChannelID,
-			discordMessageID: entry.discordMessageID,
-			twitchChannelID: entry.twitchChannelID,
-			avatar: entry.avatar,
-			games: entry.games,
+	var json : any = {};
+	for (let [guildID, guildData] of globalData)
+		json[guildID] = guildDataToObj(guildData);
 
-			triesToGetVOD: entry.triesToGetVOD,
-			vodData: entry.vodData,
-		};
-		}
-		json[guildID] = channelData;
-	}
-	fs.writeFileSync('twitchChannelsData.json', JSON.stringify(json, null, '\t'));
-}
-function loadData() {
-	if (!fs.existsSync('twitchChannelsData.json')) return;
-	const data1 = JSON.parse(fs.readFileSync('twitchChannelsData.json').toString());
-	for (let guildID of Object.keys(data1)) {
-		const prevData = customData.get(guildID);
-		const curData = data1[guildID];
-		const map : Map<string, Twitch.BotData> = new Map();
-		for (let channelName of Object.keys(curData)) {
-		var prevCurData = prevData?.get(channelName);
-		const entry = curData[channelName];
-		map.set(channelName, {
-			prevLive: prevCurData?.prevLive || false,
-			live: prevCurData?.live || false,
-			games: entry.games,
-			avatar: entry.avatar,
-			discordChannelID: entry.discordChannelID,
-			discordMessageID: entry.discordMessageID,
-			twitchChannelID: entry.twitchChannelID,
-
-			triesToGetVOD: entry.triesToGetVOD,
-			vodData: entry.vodData,
-		});
-		}
-		customData.set(guildID, map);
-	}
+	fs.writeFileSync('guildData.json', JSON.stringify(json, null, '\t'));
 }
 
 async function getTwitchResponseJson(url : string) {
@@ -517,11 +470,9 @@ const helixData : Twitch.HelixStreamsData = new Twitch.HelixStreamsData();
 async function twitchFetch() {
 	await getHelixStreamsResponse(helixData);
 	if (!helixData.wasError) {
-		for (let [guildID, guildData] of config) {
-		const guildCustomData = customData.get(guildID);
-		if (!guildCustomData) continue;
+		for (let [guildID, guildData] of globalData) {
 
-		for (let [channelName, data] of guildCustomData) {
+		for (let [channelName, data] of guildData.channels) {
 			const entry = helixData.get(channelName)!;
 			const prevEntry = helixData.previous?.get(channelName)!;
 
@@ -542,7 +493,7 @@ async function twitchFetch() {
 			if (!data.prevLive && data.live)
 			await callbackTwitchStreamStart(data, entry);
 			if (data.prevLive && !data.live)
-			await callbackTwitchStreamEnd(guildData, data, prevEntry);
+			await callbackTwitchStreamEnd(data, prevEntry);
 
 			if (data.live && prevEntry != null)
 			checkForStreamChanges(data, entry, prevEntry);
@@ -553,7 +504,7 @@ async function twitchFetch() {
 	setTimeout(twitchFetch, 5000);
 }
 
-function vodGetting_start(data : Twitch.BotData, entry : Twitch.HelixStreamsEntry, triesToGetVOD : number) : Twitch.VODData {
+function vodGetting_start(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry, triesToGetVOD : number) : Twitch.VODData {
 	if (data.vodData != null) return data.vodData;
 
 	data.triesToGetVOD = triesToGetVOD;
@@ -573,7 +524,7 @@ function vodGetting_start(data : Twitch.BotData, entry : Twitch.HelixStreamsEntr
 	return data.vodData;
 }
 
-async function vodGetting_fetch(data : Twitch.BotData, entry : Twitch.HelixStreamsEntry, prevEntry : Twitch.HelixStreamsEntry) {
+async function vodGetting_fetch(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry, prevEntry : Twitch.HelixStreamsEntry) {
 	if (data.triesToGetVOD > 0) {
 		data.triesToGetVOD--;
 
@@ -600,7 +551,7 @@ async function vodGetting_fetch(data : Twitch.BotData, entry : Twitch.HelixStrea
 	}
 }
 
-async function checkForStreamChange(data : Twitch.BotData, entry : Twitch.HelixStreamsEntry, prevEntry : Twitch.HelixStreamsEntry, msg : Discord.Message, entryName : string, emoji: string, displayName: string) : Promise<boolean> {
+async function checkForStreamChange(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry, prevEntry : Twitch.HelixStreamsEntry, msg : Discord.Message, entryName : string, emoji: string, displayName: string) : Promise<boolean> {
 	const prevValue = Reflect.get(prevEntry, entryName);
 	const value = Reflect.get(entry, entryName);
 	if (value != prevValue) {
@@ -613,7 +564,7 @@ async function checkForStreamChange(data : Twitch.BotData, entry : Twitch.HelixS
 	return false;
 }
 
-async function checkForStreamChanges(data : Twitch.BotData, entry : Twitch.HelixStreamsEntry, prevEntry : Twitch.HelixStreamsEntry) {
+async function checkForStreamChanges(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry, prevEntry : Twitch.HelixStreamsEntry) {
 	if (data.discordMessageID == null) return;
 
 	const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
@@ -626,10 +577,11 @@ async function checkForStreamChanges(data : Twitch.BotData, entry : Twitch.Helix
 }
 
 async function createDiscordNotificationChannel(guildID : string, channelName : string) : Promise<Discord.NewsChannel | null> {
-	const guildData = config.get(guildID);
+	const guildData = globalData.get(guildID);
 	const guild = client.guilds.cache.get(guildID);
-	const data = customData.get(guildID)?.get(channelName);
-	if (!guild || !guildData || !data) return null;
+	if (guildData == null || guild == null) return null;
+	const data = guildData.channels.get(channelName);
+	if (data == null) return null;
 
 	const ch = await guild.channels.create({
 		name: '『⚫』' + channelName,
@@ -767,7 +719,7 @@ async function getThread(msg : Discord.Message) {
 	return await msg.startThread({name: 'Логи'});
 }
 
-async function callbackTwitchStreamStart(data : Twitch.BotData, entry : Twitch.HelixStreamsEntry) {
+async function callbackTwitchStreamStart(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry) {
 	const userData = (await getHelixUsersResponse('id=' + entry.user_id)).get(entry.user_login);
 	if (userData != null) {
 		data.avatar = userData.profile_image_url;
@@ -803,7 +755,7 @@ async function callbackTwitchStreamStart(data : Twitch.BotData, entry : Twitch.H
 	console.log(`\x1b[36mStream started\x1b[0m\n\tuser: \x1b[32m"${entry.user_login}"\x1b[0m`);
 }
 
-async function callbackTwitchStreamEnd(guildData: Twitch.ConfigEntry, data : Twitch.BotData, entry : Twitch.HelixStreamsEntry) {
+async function callbackTwitchStreamEnd(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry) {
 	if (data.discordMessageID == null) return;
 
 	const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
