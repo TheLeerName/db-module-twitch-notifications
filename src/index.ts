@@ -488,7 +488,7 @@ async function twitchFetch() {
 			}
 			//console.log(channelName, data.prevLive, data.live);
 
-			await vodGetting_fetch(data, entry, prevEntry);
+			await vodGetting_fetch(channelName, data);
 
 			if (!data.prevLive && data.live)
 			await callbackTwitchStreamStart(data, entry);
@@ -510,7 +510,6 @@ function vodGetting_start(data : Twitch.ChannelData, entry : Twitch.HelixStreams
 	data.triesToGetVOD = triesToGetVOD;
 	data.vodData = {
 		user_name: entry.user_name,
-		user_login: entry.user_login,
 		title: entry.title,
 		games: data.games,
 		avatar: data.avatar,
@@ -524,30 +523,32 @@ function vodGetting_start(data : Twitch.ChannelData, entry : Twitch.HelixStreams
 	return data.vodData;
 }
 
-async function vodGetting_fetch(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry, prevEntry : Twitch.HelixStreamsEntry) {
+async function vodGetting_fetch(channelName : string, data : Twitch.ChannelData) {
 	if (data.triesToGetVOD > 0) {
 		data.triesToGetVOD--;
 
-		const vodEntry = (await getHelixVideosResponse(`?user_id=${entry.user_id}&first=1&sort=time&type=archive`)).get(entry.user_login);
 		const vodData = data.vodData;
-		if (vodEntry != null && vodData != null) {
-		vodData.url = vodEntry.url;
-		vodData.created_at = vodEntry.created_at;
-		vodData.thumbnail_url = vodEntry.thumbnail_url;
-		data.triesToGetVOD = 0;
+		if (vodData != null) {
+			const vodEntry = (await getHelixVideosResponse(`?user_id=${data.twitchChannelID}&first=1&sort=time&type=archive`)).get(channelName);
+			if (vodEntry != null && data.discordMessageID != null) {
+				const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
+				const msg = (await ch.messages.fetch({limit: 5})).get(data.discordMessageID);
+				if (msg != null) {
+					vodData.url = vodEntry.url;
+					vodData.created_at = vodEntry.created_at;
+					vodData.thumbnail_url = vodEntry.thumbnail_url;
+					data.triesToGetVOD = 0;
 
-		if (data.discordMessageID == null) return;
-		const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
-		const msg = (await ch.messages.fetch({limit: 5})).get(data.discordMessageID);
-		if (msg == null) return;
+					msg.edit(await getTwitchStreamEndEmbed(vodData.user_name, channelName, vodData.title, vodData.games, vodData.url, vodData.created_at, vodData.thumbnail_url, vodData.avatar));
+					data.vodData = null;
+					saveData();
+					return;
+				}
+			}
+		}
 
-		msg.edit(await getTwitchStreamEndEmbed(vodData.user_name, vodData.user_login, vodData.title, vodData.games, vodData.url, vodData.created_at, vodData.thumbnail_url, vodData.avatar));
-		data.vodData = null;
-		saveData();
-		} else if (data.triesToGetVOD == 0)
-		console.log(`\x1b[31mCan't get VOD of ended stream!\x1b[0m\n\tuser: \x1b[32m"${entry.user_login}"\x1b[0m`);
-
-		saveData();
+		if (data.triesToGetVOD == 0)
+			console.log(`\x1b[31mCan't get VOD of ended stream!\x1b[0m\n\tuser: \x1b[32m"${channelName}"\x1b[0m`);
 	}
 }
 

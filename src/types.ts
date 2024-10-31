@@ -27,7 +27,6 @@ export interface ChannelData {
 
 export interface VODData {
 	user_name: string;
-	user_login: string;
 	title: string;
 	games: string[];
 
