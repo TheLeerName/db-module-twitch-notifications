@@ -84,18 +84,18 @@ client.on("messageCreate", async (message : Discord.Message) => {
 			content = content.substring('добавь канал '.length, content.length);
 			const channelName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
 
-			if (guildData.channels.get(channelName)) {
-				await message.reply('Канал этот добавляли уже вы.');
-				return;
-			}
-
-			const userData = (await getHelixUsersResponse('login=' + channelName)).get(channelName);
+			const userData : Twitch.HelixUsersEntry = mapFirstValue(await getHelixUsersResponse('login=' + channelName));
 			if (userData == null) {
 				await message.reply('Канал не существует такой.');
 				return;
 			}
 
-			const ch = await createDiscordNotificationChannel(message.guild.id, channelName);
+			if (guildData.channels.get(userData.login)) {
+				await message.reply('Канал этот добавляли уже вы.');
+				return;
+			}
+
+			const ch = await createDiscordNotificationChannel(message.guild.id, userData.login);
 			if (ch == null) {
 				await message.reply('Не смог создать канал я.');
 				return;
@@ -113,10 +113,10 @@ client.on("messageCreate", async (message : Discord.Message) => {
 				triesToGetVOD: 0,
 				vodData: null
 			};
-			guildData.channels.set(channelName, newData);
+			guildData.channels.set(userData.login, newData);
 			saveData();
 
-			await message.reply(`Успешно добавлен был **${channelName}** канал.\nУведомление будет на стриме следующем только, говорю тебе я.`);
+			await message.reply(`Успешно добавлен был **${userData.display_name}** канал.\nУведомление будет на стриме следующем только, говорю тебе я.`);
 		}
 		if (content.startsWith('удали канал ')) {
 			content = content.substring('удали канал '.length, content.length);
@@ -296,6 +296,10 @@ function mapToObj(map : Map<string, any>) : any {
 	for (let [k,v] of map)
 		obj[k] = v;
 	return obj;
+}
+
+function mapFirstValue(map : Map<any, any>) : any {
+	for (let [k, v] of map) return v;
 }
 
 function guildDataToObj(guildData : Twitch.GuildData) : any {
