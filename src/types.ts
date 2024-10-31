@@ -18,7 +18,6 @@ export interface ChannelData {
 	games: string[];
 	avatar: string | null;
 
-	triesToGetVOD: number;
 	vodData: VODData | null;
 
 	live: boolean;
@@ -27,6 +26,7 @@ export interface ChannelData {
 
 export interface VODData {
 	discordMessageID: string;
+	triesToGet: number;
 
 	user_name: string;
 	title: string;
