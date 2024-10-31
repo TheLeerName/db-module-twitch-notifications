@@ -508,11 +508,13 @@ async function twitchFetch() {
 	setTimeout(twitchFetch, 5000);
 }
 
-function vodGetting_start(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry, triesToGetVOD : number) : Twitch.VODData {
-	if (data.vodData != null) return data.vodData;
+function vodGetting_start(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry, triesToGetVOD : number) {
+	if (data.vodData != null || data.discordMessageID == null) return;
 
 	data.triesToGetVOD = triesToGetVOD;
 	data.vodData = {
+		discordMessageID: data.discordMessageID,
+
 		user_name: entry.user_name,
 		title: entry.title,
 		games: data.games,
@@ -523,8 +525,6 @@ function vodGetting_start(data : Twitch.ChannelData, entry : Twitch.HelixStreams
 		thumbnail_url: null,
 	};
 	saveData();
-
-	return data.vodData;
 }
 
 async function vodGetting_fetch(channelName : string, data : Twitch.ChannelData) {
@@ -534,9 +534,9 @@ async function vodGetting_fetch(channelName : string, data : Twitch.ChannelData)
 		const vodData = data.vodData;
 		if (vodData != null) {
 			const vodEntry = (await getHelixVideosResponse(`?user_id=${data.twitchChannelID}&first=1&sort=time&type=archive`)).get(channelName);
-			if (vodEntry != null && data.discordMessageID != null) {
+			if (vodEntry != null) {
 				const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
-				const msg = (await ch.messages.fetch({limit: 5})).get(data.discordMessageID);
+				const msg = (await ch.messages.fetch({limit: 5})).get(vodData.discordMessageID);
 				if (msg != null) {
 					vodData.url = vodEntry.url;
 					vodData.created_at = vodEntry.created_at;
@@ -546,6 +546,7 @@ async function vodGetting_fetch(channelName : string, data : Twitch.ChannelData)
 					msg.edit(await getTwitchStreamEndEmbed(vodData.user_name, channelName, vodData.title, vodData.games, vodData.url, vodData.created_at, vodData.thumbnail_url, vodData.avatar));
 					data.vodData = null;
 					saveData();
+					console.log(`\x1b[31mGot VOD! (stream was ended)\x1b[0m\n\tuser: \x1b[32m"${vodEntry.user_login}"\x1b[0m`);
 					return;
 				}
 			}

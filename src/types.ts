@@ -26,6 +26,8 @@ export interface ChannelData {
 }
 
 export interface VODData {
+	discordMessageID: string;
+
 	user_name: string;
 	title: string;
 	games: string[];
