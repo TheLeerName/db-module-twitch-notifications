@@ -570,7 +570,7 @@ async function checkForStreamChanges(data : Twitch.ChannelData, entry : Twitch.H
 	const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
 	const msg = (await ch.messages.fetch({limit: 5})).get(data.discordMessageID);
 	if (msg != null) {
-		await checkForStreamChange(data, entry, prevEntry, msg, 'viewers_count', 'bust_in_silhouette', 'Зрителей');
+		await checkForStreamChange(data, entry, prevEntry, msg, 'viewer_count', 'bust_in_silhouette', 'Зрителей');
 		await checkForStreamChange(data, entry, prevEntry, msg, 'game_name', 'video_game', 'Текущая игра');
 		await checkForStreamChange(data, entry, prevEntry, msg, 'title', 'speech_left', 'Название стрима');
 	}
