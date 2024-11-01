@@ -525,23 +525,22 @@ function vodGetting_start(data : Twitch.ChannelData, entry : Twitch.HelixStreams
 }
 
 async function vodGetting_fetch(channelName : string, data : Twitch.ChannelData) {
-	const vodData = data.vodData;
-	if (vodData == null) return;
+	if (data.vodData == null) return;
 
-	if (vodData.triesToGet > 0) {
-		vodData.triesToGet--;
+	if (data.vodData.triesToGet > 0) {
+		data.vodData.triesToGet--;
 		saveData();
 
 		const vodEntry = (await getHelixVideosResponse(`?user_id=${data.twitchChannelID}&first=1&sort=time&type=archive`)).get(channelName);
 		if (vodEntry != null) {
 			const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
-			const msg = (await ch.messages.fetch({limit: 5})).get(vodData.discordMessageID);
+			const msg = (await ch.messages.fetch({limit: 5})).get(data.vodData.discordMessageID);
 			if (msg != null) {
-				vodData.url = vodEntry.url;
-				vodData.created_at = vodEntry.created_at;
-				vodData.thumbnail_url = vodEntry.thumbnail_url;
+				data.vodData.url = vodEntry.url;
+				data.vodData.created_at = vodEntry.created_at;
+				data.vodData.thumbnail_url = vodEntry.thumbnail_url;
 
-				msg.edit(await getTwitchStreamEndEmbed(vodData.user_name, channelName, vodData.title, vodData.games, vodData.url, vodData.created_at, vodData.thumbnail_url, vodData.avatar));
+				msg.edit(await getTwitchStreamEndEmbed(data.vodData.user_name, channelName, data.vodData.title, data.vodData.games, data.vodData.url, data.vodData.created_at, data.vodData.thumbnail_url, data.vodData.avatar));
 				data.vodData = null;
 				saveData();
 
@@ -550,7 +549,7 @@ async function vodGetting_fetch(channelName : string, data : Twitch.ChannelData)
 			}
 		}
 
-		if (vodData.triesToGet == 0) {
+		if (data.vodData.triesToGet == 0) {
 			console.log(`\x1b[31mCan't get VOD of ended stream!\x1b[0m\n\tuser: \x1b[32m"${channelName}"\x1b[0m\n\terror: \x1b[31mVideo not found\x1b[0m`);
 			data.vodData = null;
 			saveData();
