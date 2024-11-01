@@ -124,7 +124,7 @@ export interface HelixUsersEntry {
 export interface HelixVideosEntry {
 	/** video id, for example "123456789" */
 	id: string;
-	/** stream id, if video type is archive then null, for example "123456789" */
+	/** stream id if video type is archive, otherwise `null`, for example "123456789" */
 	stream_id: string | null;
 	/** channel id, for example "123456789" */
 	user_id: string;

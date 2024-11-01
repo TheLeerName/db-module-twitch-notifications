@@ -747,7 +747,7 @@ async function callbackTwitchStreamStart(data : Twitch.ChannelData, entry : Twit
 
 	if (userData?.broadcaster_type != Twitch.TwitchBroadcasterType.NORMAL)
 		setTimeout(async () => {
-		const vodEntry = (await getHelixVideosResponse(`?user_id=${entry.user_id}&first=1&sort=time&type=archive`)).get(entry.user_login);
+		const vodEntry : Twitch.HelixVideosEntry = mapFirstValue(await getHelixVideosResponse(`?user_id=${entry.user_id}&first=1&sort=time&type=archive`));
 		if (vodEntry != null && vodEntry.stream_id == entry.id) {
 			vodGetting_start(data, entry, 0);
 
