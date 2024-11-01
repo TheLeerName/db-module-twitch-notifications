@@ -359,7 +359,7 @@ async function getHelixVideosResponse(args : string) : Promise<Map<string, Twitc
 	try {
 		json = await getTwitchResponseJson(`https://api.twitch.tv/helix/videos?${args || ""}`);
 	} catch(e) {
-		console.log(`\x1b[31mFetch helix/videos failed!\x1b[0m\n\targs: \x1b[32m"${args}"\x1b[0m`);
+		console.log(`\x1b[31mFetch helix/videos failed!\x1b[0m\n\targs: \x1b[32m"${args}"\x1b[0m\n\terror: \x1b[31m${e.substring(0, e.indexOf('\n'))}\x1b[0m`);
 	}
 
 	var map : Map<string, Twitch.HelixVideosEntry> = new Map();
@@ -393,7 +393,7 @@ async function getHelixUsersResponse(args : string) : Promise<Map<string, Twitch
 	try {
 		json = await getTwitchResponseJson(`https://api.twitch.tv/helix/users?${args || ""}`);
 	} catch(e) {
-		console.log(`\x1b[31mFetch helix/users failed!\x1b[0m\n\targs: \x1b[32m"${args}"\x1b[0m`);
+		console.log(`\x1b[31mFetch helix/users failed!\x1b[0m\n\targs: \x1b[32m"${args}"\x1b[0m\n\terror: \x1b[31m${e.substring(0, e.indexOf('\n'))}\x1b[0m`);
 	}
 
 	var map : Map<string, Twitch.HelixUsersEntry> = new Map();
@@ -422,7 +422,7 @@ async function getHelixStreamsResponse(helix : Twitch.HelixStreamsData) : Promis
 	try {
 		json = await getTwitchResponseJson(fetchURL);
 	} catch(e) {
-		console.log(`\x1b[31mFetch helix/streams failed!\x1b[0m\n\targs: \x1b[32m"${fetchURL.substring(fetchURL.indexOf('?') + 1, fetchURL.length)}"\x1b[0m`);
+		console.log(`\x1b[31mFetch helix/streams failed!\x1b[0m\n\targs: \x1b[32m"${fetchURL.substring(fetchURL.indexOf('?') + 1, fetchURL.length)}"\x1b[0m\n\terror: \x1b[31m${e.substring(0, e.indexOf('\n'))}\x1b[0m`);
 	}
 
 	//const json = getResponseJson();
@@ -551,7 +551,7 @@ async function vodGetting_fetch(channelName : string, data : Twitch.ChannelData)
 		}
 
 		if (vodData.triesToGet == 0) {
-			console.log(`\x1b[31mCan't get VOD of ended stream!\x1b[0m\n\tuser: \x1b[32m"${channelName}"\x1b[0m`);
+			console.log(`\x1b[31mCan't get VOD of ended stream!\x1b[0m\n\tuser: \x1b[32m"${channelName}"\x1b[0m\n\terror: \x1b[31mVideo not found\x1b[0m`);
 			data.vodData = null;
 			saveData();
 		}
