@@ -752,7 +752,7 @@ async function callbackTwitchStreamStart(data : Twitch.ChannelData, entry : Twit
 
 			saveData();
 		} else
-			console.log(`\x1b[36mCan't get current VOD of stream!\x1b[0m\n\tuser: \x1b[32m"${entry.user_login}"\x1b[0m`);
+			console.log(`\x1b[31mCan't get current VOD of stream!\x1b[0m\n\tuser: \x1b[32m"${entry.user_login}"\x1b[0m`);
 		}, 30000);
 
 	data.discordMessageID = msg.id;
