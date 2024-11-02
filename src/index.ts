@@ -1,6 +1,11 @@
 import * as Discord from 'discord.js';
 import fs from 'fs';
 import * as Twitch from './types';
+import { fetch, setGlobalDispatcher, Agent } from 'undici';
+
+// fixes ConnectTimeoutError
+// https://stackoverflow.com/a/76512104
+setGlobalDispatcher(new Agent({ connect: { timeout: 60_000 } }) );
 
 const configJSON : Twitch.ConfigJSON = JSON.parse(fs.readFileSync('config.json').toString());
 
@@ -355,7 +360,7 @@ async function getTwitchResponseJson(url : string) {
 //}
 
 async function getHelixVideosResponse(args : string) : Promise<Map<string, Twitch.HelixVideosEntry>> {
-	var json = null;
+	var json : any = null;
 	try {
 		json = await getTwitchResponseJson(`https://api.twitch.tv/helix/videos?${args || ""}`);
 	} catch(e) {
@@ -389,7 +394,7 @@ async function getHelixVideosResponse(args : string) : Promise<Map<string, Twitc
 }
 
 async function getHelixUsersResponse(args : string) : Promise<Map<string, Twitch.HelixUsersEntry>> {
-	var json = null;
+	var json : any = null;
 	try {
 		json = await getTwitchResponseJson(`https://api.twitch.tv/helix/users?${args || ""}`);
 	} catch(e) {
@@ -418,7 +423,7 @@ async function getHelixUsersResponse(args : string) : Promise<Map<string, Twitch
 }
 
 async function getHelixStreamsResponse(helix : Twitch.HelixStreamsData) : Promise<Twitch.HelixStreamsData> {
-	var json = null;
+	var json : any = null;
 	try {
 		json = await getTwitchResponseJson(fetchURL);
 	} catch(e) {
