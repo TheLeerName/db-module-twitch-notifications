@@ -2,12 +2,29 @@ import * as Discord from 'discord.js';
 import fs from 'fs';
 import * as Twitch from './types';
 import { fetch, setGlobalDispatcher, Agent } from 'undici';
+import JSON5 from 'json5';
 
 // fixes ConnectTimeoutError
 // https://stackoverflow.com/a/76512104
 setGlobalDispatcher(new Agent({ connect: { timeout: 60_000 } }) );
 
-const configJSON : Twitch.ConfigJSON = JSON.parse(fs.readFileSync('config.json').toString());
+function loadConfig() : Twitch.ConfigJSON {
+	if (fs.existsSync('config.json5')) {
+		const c : Twitch.ConfigJSON = JSON5.parse(fs.readFileSync('config.json5').toString());
+		if (c.token.length == 0 || c.twitchAccessToken.length == 0 || c.twitchClientID.length == 0) {
+			console.log("\x1b[31mYou didn't specified parameters in \x1b[32mconfig.json5\x1b[31m!\x1b[0m");
+			process.exit();
+		}
+		return c;
+	} else {
+		console.log("\x1b[36mCreating \x1b[32mconfig.json5\x1b[36m...\x1b[0m");
+		fs.writeFileSync('config.json5', fs.readFileSync('src/config.json5.template'));
+		console.log("\x1b[36mPlease specify parameters in \x1b[32mconfig.json5\x1b[36m and run app again\x1b[0m");
+		console.log(`\n\x1b[33mTip: \x1b[36mUse this VS Code extension to syntax highlight json5 files\n\t\x1b[0murl: \x1b[32m"https://marketplace.visualstudio.com/items?itemName=KatjanaKosic.vscode-json5"\x1b[0m`);
+		process.exit();
+	}
+}
+const configJSON : Twitch.ConfigJSON = loadConfig();
 
 const client = new Discord.Client<true>({
 	failIfNotExists: false,
@@ -159,7 +176,7 @@ client.on("messageCreate", async (message : Discord.Message) => {
 			var values : any = content.substring(paramName.length + ' на '.length, content.length);
 			values = values.substring(0, values.includes(' ') ? values.indexOf(' ') : values.length);
 			if (values == 'null') values = null;
-			if (values.startsWith('[') && values.endsWith(']')) values = JSON.parse(values);
+			if (values.startsWith('[') && values.endsWith(']')) values = JSON5.parse(values);
 
 			var arrayPos : number | null = paramName.endsWith(']') ? parseInt(paramName.substring(paramName.indexOf('[') + 1, paramName.indexOf(']'))) : null;
 
@@ -184,7 +201,7 @@ client.on("messageCreate", async (message : Discord.Message) => {
 			}
 			saveData();
 
-			await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON.stringify(prevValue)}\` на \`${JSON.stringify(values)}\` значение, рассказываю тебе я.`);
+			await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON5.stringify(prevValue)}\` на \`${JSON5.stringify(values)}\` значение, рассказываю тебе я.`);
 		}
 		if (content.startsWith('измени параметр ')) {
 			content = content.substring('измени параметр '.length, content.length);
@@ -194,7 +211,7 @@ client.on("messageCreate", async (message : Discord.Message) => {
 			var values : any = content.substring(paramName.length + ' канала '.length + channelName.length + ' на '.length, content.length);
 			values = values.substring(0, values.includes(' ') ? values.indexOf(' ') : values.length);
 			if (values == 'null') values = null;
-			if (values.startsWith('[') && values.endsWith(']')) values = JSON.parse(values);
+			if (values.startsWith('[') && values.endsWith(']')) values = JSON5.parse(values);
 
 			var arrayPos : number | null = paramName.endsWith(']') ? parseInt(paramName.substring(paramName.indexOf('[') + 1, paramName.indexOf(']'))) : null;
 
@@ -224,12 +241,12 @@ client.on("messageCreate", async (message : Discord.Message) => {
 			}
 			saveData();
 
-			await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON.stringify(prevValue)}\` на \`${JSON.stringify(values)}\` значение, рассказываю тебе я.`);
+			await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON5.stringify(prevValue)}\` на \`${JSON5.stringify(values)}\` значение, рассказываю тебе я.`);
 		}
 
 		if (content.startsWith('отправь конфиг')) {
 			content = content.substring('отправь конфиг'.length, content.length);
-			await message.reply("Конфиг таков, рассказываю тебе я.\n```json\n" + JSON.stringify(guildDataToObj(guildData), null, '\t') + "\n```");
+			await message.reply("Конфиг таков, рассказываю тебе я.\n```json\n" + JSON5.stringify(guildDataToObj(guildData), null, '\t') + "\n```");
 		}
 		if (content.startsWith('отправь параметр ')) {
 			content = content.substring('отправь параметр '.length, content.length);
@@ -325,8 +342,8 @@ function guildDataToObj(guildData : Twitch.GuildData) : any {
 }
 
 function loadData() : boolean {
-	if (!fs.existsSync('guildData.json')) return false;
-	const data1 = JSON.parse(fs.readFileSync('guildData.json').toString());
+	if (!fs.existsSync('guildData.json5')) return false;
+	const data1 = JSON5.parse(fs.readFileSync('guildData.json5').toString());
 
 	for (let guildID of Object.keys(data1)) {
 		const guildData = data1[guildID];
@@ -346,7 +363,7 @@ function saveData() {
 	for (let [guildID, guildData] of globalData)
 		json[guildID] = guildDataToObj(guildData);
 
-	fs.writeFileSync('guildData.json', JSON.stringify(json, null, '\t'));
+	fs.writeFileSync('guildData.json5', JSON5.stringify(json, null, '\t'));
 }
 
 async function getTwitchResponseJson(url : string) {
@@ -356,7 +373,7 @@ async function getTwitchResponseJson(url : string) {
 	})).json();
 }
 //function getResponseJson() {
-//  return JSON.parse(fs.readFileSync('twitchResponse.json').toString());
+//  return JSON5.parse(fs.readFileSync('twitchResponse.json5').toString());
 //}
 
 async function getHelixVideosResponse(args : string) : Promise<Map<string, Twitch.HelixVideosEntry>> {

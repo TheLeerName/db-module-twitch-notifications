@@ -1,0 +1,10 @@
+{
+    // discord bot token: https://discord.com/developers/applications
+	token: "",
+    // this will appear as activity of discord bot
+	activity: "Listening Twitch streams",
+    // twitch app client id: https://dev.twitch.tv/console/apps
+	twitchClientID: "",
+    // twitch app access token (resets after 2 months as i remember): https://dev.twitch.tv/console/apps
+	twitchAccessToken: ""
+}
