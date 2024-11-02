@@ -20,7 +20,7 @@ function loadConfig() : Twitch.ConfigJSON {
 		console.log("\x1b[36mCreating \x1b[32mconfig.json5\x1b[36m...\x1b[0m");
 		fs.writeFileSync('config.json5', fs.readFileSync('src/config.json5.template'));
 		console.log("\x1b[36mPlease specify parameters in \x1b[32mconfig.json5\x1b[36m and run app again\x1b[0m");
-		console.log(`\n\x1b[33mTip: \x1b[36mUse this VS Code extension to syntax highlight json5 files\n\t\x1b[0murl: \x1b[32m"https://marketplace.visualstudio.com/items?itemName=KatjanaKosic.vscode-json5"\x1b[0m`);
+		console.log(`\n\x1b[33mTip: \x1b[36mUse this VS Code extension to syntax highlight json5 files\n\t\x1b[0murl: \x1b[32m"https://marketplace.visualstudio.com/items?itemName=savh.json5-kit"\x1b[0m`);
 		process.exit();
 	}
 }
