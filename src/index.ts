@@ -306,6 +306,7 @@ async function twitchFetch() {
 				const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
 				const msg = (await ch.messages.fetch({limit: 5})).get(data.discordMessageID);
 				await msg?.edit(Helper.getTwitchStreamStartEmbed(entry.user_name, entry.user_login, entry.title, data.games, entry.started_at, entry.viewer_count, entry.thumbnail_url, data.avatar));
+				L.info(moduleName, 'Updated discord message after restarting bot', {user: entry.user_login, messageID: data.discordMessageID});
 				// update message on bot start
 				// it doesnt do logs in thread channel here tho
 			}
