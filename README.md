@@ -1,12 +1,7 @@
-# Twitch Notifications Discord Bot
+# Twitch Stream Notifications
 
-## How to run
-1. Install [node.js](https://nodejs.org/)
-2. Enter command in terminal: `npm i`
-3. Build with command: `npx tsc` (everytime when you changing `.ts` files u need to do this)
-4. Start app with `run.bat` script
-5. App will ask about changing parameters in `config.json5`, so do it and go to next step
-6. Start bot with `run.bat` script again yeah
+# How to use this module?
+- Go to [parent repository](https://github.com/TheLeerName/db-module-core) and read `README.md` file
 
 ## TODO
 - add discord commands with english language

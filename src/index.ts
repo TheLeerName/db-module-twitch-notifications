@@ -1,5 +1,5 @@
-import { configINI, client } from './../../src/index';
-import * as L from './../../src/logger';
+import { configINI, client } from '../../../src/index';
+import * as L from '../../../src/logger';
 import * as Twitch from './types';
 import * as Helper from './helper-functions';
 
@@ -8,16 +8,12 @@ import { fetch, setGlobalDispatcher, Agent } from 'undici';
 import JSON5 from 'json5';
 
 export const moduleName = "twitch-notifications";
-export const globalData = Helper.loadGlobalData();
-
-// fixes ConnectTimeoutError
-// https://stackoverflow.com/a/76512104
-setGlobalDispatcher(new Agent({ connect: { timeout: 60_000 } }) );
+export const globalData: Map<string, Twitch.GuildData>  = new Map();
 
 export var fetchURL = "https://api.twitch.tv/helix/streams?";
 var headers = {
-  "Client-ID": configINI.get(moduleName, 'twitchClientID'),
-  "Authorization": "Bearer " + configINI.get(moduleName, 'twitchAccessToken')
+  "Client-ID": "",
+  "Authorization": ""
 };
 
 export async function getTwitchResponseJson(url : string) {
@@ -30,6 +26,20 @@ export async function getTwitchResponseJson(url : string) {
 //  return JSON5.parse(fs.readFileSync('twitchResponse.json5').toString());
 //}
 
+export function main() {
+	// fixes ConnectTimeoutError
+	// https://stackoverflow.com/a/76512104
+	setGlobalDispatcher(new Agent({ connect: { timeout: 60_000 } }) );
+
+	headers['Client-ID'] = configINI.get(moduleName, 'twitchClientID');
+	headers.Authorization = "Bearer " + configINI.get(moduleName, 'twitchAccessToken');
+
+	client.on("guildCreate", guildCreate);
+	client.on("guildDelete", guildDelete);
+	client.on("messageCreate", messageCreate);
+	client.on("ready", ready);
+}
+
 async function guildCreate(guild : Discord.Guild) {
 	const prevGuildData = globalData.get(guild.id);
 	var cat = prevGuildData != null ? guild.channels.cache.get(prevGuildData.discordCategoryID) : null;
@@ -38,7 +48,7 @@ async function guildCreate(guild : Discord.Guild) {
 			name: 'оповещения о стримах',
 			type: Discord.ChannelType.GuildCategory
 		});
-		L.info('Creating new discord category', {guildName: guild.name});
+		L.info(moduleName, 'Creating new discord category', {guildName: guild.name});
 	}
 
 	globalData.set(guild.id, {
@@ -48,17 +58,15 @@ async function guildCreate(guild : Discord.Guild) {
 	});
 	Helper.saveGlobalData();
 }
-client.on("guildCreate", guildCreate);
 
-
-client.on("guildDelete", async (guild : Discord.Guild) => {
+async function guildDelete(guild : Discord.Guild) {
 	globalData.delete(guild.id);
 	Helper.saveGlobalData();
-});
+}
 
-client.on("messageCreate", async (message : Discord.Message) => {
+async function messageCreate(message : Discord.Message) {
 	if (message.guild == null) {
-		return L.error('message was written OUTSIDE server??? wtf??', {
+		return L.error(moduleName, 'message was written OUTSIDE server??? wtf??', {
 			author: message.author.globalName,
 			content: message.content
 		});
@@ -66,14 +74,14 @@ client.on("messageCreate", async (message : Discord.Message) => {
 
 	var guildData = globalData.get(message.guild.id);
 	if (guildData == null) {
-		L.error('where the fuck server config? im creating it rn', {
+		L.error(moduleName, 'where the fuck server config? im creating it rn', {
 			server: message.guild.name
 		});
 		await guildCreate(message.guild);
 		guildData = globalData.get(message.guild.id);
 	}
 	if (guildData == null) {
-		L.error('fuck. i cant.');
+		L.error(moduleName, 'fuck. i cant.');
 		return;
 	}
 
@@ -84,7 +92,7 @@ client.on("messageCreate", async (message : Discord.Message) => {
 	content = content.substring(5, content.length);
 	if (content.startsWith('твич уведомления ')) {
 		content = content.substring('твич уведомления '.length, content.length);
-		L.info(`Got twitch command`, {content});
+		L.info(moduleName, `Got twitch command`, {content});
 		if (content.startsWith('добавь канал ')) {
 			content = content.substring('добавь канал '.length, content.length);
 			const channelName = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
@@ -262,9 +270,9 @@ client.on("messageCreate", async (message : Discord.Message) => {
 		}
 	}
 	}
-});
+}
 
-client.on("ready", async () => {
+async function ready() {
 	Helper.loadGlobalData();
 
 	var fetchChannelsID: string[] = [];
@@ -277,9 +285,9 @@ client.on("ready", async () => {
 	for (let url of fetchChannelsID)
 		fetchURL += 'user_id=' + url + '&';
 
-	L.info(`Listening Twitch channels`, {url: fetchURL, "Client-ID": headers['Client-ID'], Authorization: headers.Authorization});
+	L.info(moduleName, `Listening Twitch channels`, {url: fetchURL, "Client-ID": headers['Client-ID'], Authorization: headers.Authorization});
 	twitchFetch();
-});
+}
 
 const helixData : Twitch.HelixStreamsData = new Twitch.HelixStreamsData();
 async function twitchFetch() {
@@ -325,7 +333,7 @@ async function callbackTwitchStreamStart(data : Twitch.ChannelData, entry : Twit
 		data.avatar = userData.profile_image_url;
 		Helper.saveGlobalData();
 	} else
-		L.error(`Can't get twitch user profile data!`, {user: entry.user_login});
+		L.error(moduleName, `Can't get twitch user profile data!`, {user: entry.user_login});
 
 	const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
 	ch.setName('『🔴』' + entry.user_login);
@@ -346,7 +354,7 @@ async function callbackTwitchStreamStart(data : Twitch.ChannelData, entry : Twit
 
 			Helper.saveGlobalData();
 		} else
-			L.error(`Can't get current VOD of stream!`, {user: entry.user_login});
+			L.error(moduleName, `Can't get current VOD of stream!`, {user: entry.user_login});
 		}, 30000);
 
 	data.discordMessageID = msg.id;

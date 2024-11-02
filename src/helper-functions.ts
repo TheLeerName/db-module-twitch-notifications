@@ -1,7 +1,7 @@
-import { client, loadGlobalDataOfModule, saveGlobalDataOfModule } from './../../src/index';
-import * as L from './../../src/logger';
+import { client, loadGlobalDataOfModule, saveGlobalDataOfModule } from './../../../src/index';
+import * as L from './../../../src/logger';
 import * as Twitch from './types';
-import { fetchURL, getTwitchResponseJson, moduleName, globalData } from './twitch-notifications';
+import { fetchURL, getTwitchResponseJson, moduleName, globalData } from './index';
 
 import * as Discord from 'discord.js';
 
@@ -17,8 +17,6 @@ export function saveGlobalData() {
 }
 
 export function loadGlobalData() {
-	const map: Map<string, Twitch.GuildData> = new Map();
-
 	for (let [guildID, guildData] of Object.entries<any>(loadGlobalDataOfModule(moduleName))) {
 		const newGuildData: Twitch.GuildData = {
 			commandChannelID: guildData.commandChannelID,
@@ -27,8 +25,6 @@ export function loadGlobalData() {
 		};
 		globalData.set(guildID, newGuildData);
 	}
-
-	return map;
 }
 
 export function mapToObj(map : Map<string, any>) : any {
@@ -66,7 +62,7 @@ export async function getHelixVideosResponse(args : string) : Promise<Map<string
 	try {
 		json = await getTwitchResponseJson(`https://api.twitch.tv/helix/videos?${args || ""}`);
 	} catch(e) {
-		L.error(`Fetch helix/videos failed!`, {args}, e);
+		L.error(moduleName, `Fetch helix/videos failed!`, {args}, e);
 	}
 
 	var map : Map<string, Twitch.HelixVideosEntry> = new Map();
@@ -100,7 +96,7 @@ export async function getHelixUsersResponse(args : string) : Promise<Map<string,
 	try {
 		json = await getTwitchResponseJson(`https://api.twitch.tv/helix/users?${args || ""}`);
 	} catch(e) {
-		L.error(`Fetch helix/users failed!`, {args}, e);
+		L.error(moduleName, `Fetch helix/users failed!`, {args}, e);
 	}
 
 	var map : Map<string, Twitch.HelixUsersEntry> = new Map();
@@ -129,14 +125,14 @@ export async function getHelixStreamsResponse(helix : Twitch.HelixStreamsData) :
 	try {
 		json = await getTwitchResponseJson(fetchURL);
 	} catch(e) {
-		L.error(`Fetch helix/streams failed!`, {args: fetchURL.substring(fetchURL.indexOf('?') + 1, fetchURL.length)}, e);
+		L.error(moduleName, `Fetch helix/streams failed!`, {args: fetchURL.substring(fetchURL.indexOf('?') + 1, fetchURL.length)}, e);
 	}
 
 	//const json = getResponseJson();
 
 	if (json?.data != null) {
 		if (helix.wasError) {
-			L.info('fetched successfully! no worries! probably some internet error idk');
+			L.info(moduleName, 'fetched successfully! no worries! probably some internet error idk');
 			helix.wasError = false;
 		}
 
@@ -210,7 +206,7 @@ export async function vodGetting_fetch(channelName : string, data : Twitch.Chann
 				data.vodData.thumbnail_url = vodEntry.thumbnail_url;
 				msg.edit(await getTwitchStreamEndEmbed(data.vodData.user_name, channelName, data.vodData.title, data.vodData.games, data.vodData.url, data.vodData.created_at, data.vodData.thumbnail_url, data.vodData.avatar));
 
-				L.info(`Got VOD! (stream was ended)`, {user: vodEntry.user_login, url: data.vodData.url});
+				L.info(moduleName, `Got VOD! (stream was ended)`, {user: vodEntry.user_login, url: data.vodData.url});
 				data.vodData = null;
 				saveGlobalData();
 				return;
@@ -218,7 +214,7 @@ export async function vodGetting_fetch(channelName : string, data : Twitch.Chann
 		}
 
 		if (data.vodData.triesToGet == 0) {
-			L.error(`Can't get VOD of ended stream!`, {user: channelName}, "Video not found");
+			L.error(moduleName, `Can't get VOD of ended stream!`, {user: channelName}, "Video not found");
 			data.vodData = null;
 			saveGlobalData();
 		}
@@ -232,7 +228,7 @@ export async function checkForStreamChange(data : Twitch.ChannelData, entry : Tw
 		await (await getThread(msg)).send(getDiscordMessagePrefix(`:${emoji}: ${displayName}: **${value}**`));
 		await msg.edit(getTwitchStreamStartEmbed(entry.user_name, entry.user_login, entry.title, data.games, entry.started_at, entry.viewer_count, entry.thumbnail_url, data.avatar));
 
-		L.info(`Got changed entry!`, {user: entry.user_login, entryName, prevValue, newValue: value});
+		L.info(moduleName, `Got changed entry!`, {user: entry.user_login, entryName, prevValue, newValue: value});
 		return true;
 	}
 	return false;
@@ -388,7 +384,7 @@ export async function createDiscordNotificationChannel(guildID : string, channel
 	}).then(channel => channel.setTopic(`Оповещения о стримах Twitch-канала ${channelName}. Каждое сообщение обновляется самописным ботом! Если в названии канала кружок красный, это значит канал сейчас в эфире!`));
 	data.discordChannelID = ch.id;
 	saveGlobalData();
-	L.info(`Created notifications channel`, {user: channelName});
+	L.info(moduleName, `Created notifications channel`, {user: channelName});
 
 	return ch;
 }
