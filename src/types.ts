@@ -1,14 +1,3 @@
-export interface ConfigJSON {
-	// discord bot token: https://discord.com/developers/applications
-	token: string,
-	// this will appear as activity of discord bot
-	activity: string,
-	// twitch app client id: https://dev.twitch.tv/console/apps
-	twitchClientID: string,
-	// twitch app access token (resets after 2 months as i remember): https://dev.twitch.tv/console/apps
-	twitchAccessToken: string,
-}
-
 export interface GuildData {
 	commandChannelID: string | null;
 	discordCategoryID: string;
