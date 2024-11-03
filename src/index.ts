@@ -180,7 +180,7 @@ async function messageCreate(message : Discord.Message) {
 				return;
 			}
 
-			var prevValue = null;
+			var prevValue : any = null;
 			if (arrayPos != null) {
 				var obj = Reflect.get(guildData, paramName);
 				prevValue = obj[arrayPos];
@@ -220,7 +220,7 @@ async function messageCreate(message : Discord.Message) {
 				return;
 			}
 
-			var prevValue = null;
+			var prevValue : any = null;
 			if (arrayPos != null) {
 				var obj : any = Reflect.get(data, paramName);
 				prevValue = obj[arrayPos];
