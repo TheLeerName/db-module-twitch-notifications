@@ -310,7 +310,7 @@ async function twitchFetch() {
 				// update message on bot start
 				// it doesnt do logs in thread channel here tho
 			}
-			//L.info("twitchFetch success ", {channelName, prevLive: data.prevLive, live: data.live});
+			//L.info(moduleName, "twitchFetch success ", {channelName, prevLive: data.prevLive, live: data.live});
 
 			await Helper.vodGetting_fetch(channelName, data);
 
@@ -361,7 +361,7 @@ async function callbackTwitchStreamStart(data : Twitch.ChannelData, entry : Twit
 	data.discordMessageID = msg.id;
 	Helper.saveGlobalData();
 
-	L.info(`Stream started`, {user: entry.user_login});
+	L.info(moduleName, `Stream started`, {user: entry.user_login});
 }
 
 async function callbackTwitchStreamEnd(data : Twitch.ChannelData, entry : Twitch.HelixStreamsEntry) {
@@ -383,5 +383,5 @@ async function callbackTwitchStreamEnd(data : Twitch.ChannelData, entry : Twitch
 	data.games = [];
 	Helper.saveGlobalData();
 
-	L.info(`Stream ended`, {user: entry.user_login});
+	L.info(moduleName, `Stream ended`, {user: entry.user_login});
 }
