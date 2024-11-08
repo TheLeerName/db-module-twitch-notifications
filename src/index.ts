@@ -301,7 +301,7 @@ async function twitchFetch() {
 
 			data.prevLive = data.live;
 			data.live = entry != null;
-			if (prevEntry == null && data.discordMessageID != null) {
+			if (data.live && prevEntry == null && data.discordMessageID != null) {
 				data.prevLive = data.live;
 				const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
 				const msg = (await ch.messages.fetch({limit: 5})).get(data.discordMessageID);
@@ -315,9 +315,9 @@ async function twitchFetch() {
 			await Helper.vodGetting_fetch(channelName, data);
 
 			if (!data.prevLive && data.live)
-			await callbackTwitchStreamStart(data, entry);
+				await callbackTwitchStreamStart(data, entry);
 			if (data.prevLive && !data.live)
-			await callbackTwitchStreamEnd(data, prevEntry);
+				await callbackTwitchStreamEnd(data, prevEntry);
 
 			if (data.live && prevEntry != null)
 				Helper.checkForStreamChanges(data, entry, prevEntry);

@@ -69,22 +69,22 @@ export async function getHelixVideosResponse(args : string) : Promise<Map<string
 	if (json?.data != null) {
 		for (let r of json.data) {
 			map.set(r.user_login, {
-			id: r.id,
-			stream_id: r.stream_id,
-			user_id: r.user_id,
-			user_login: r.user_login,
-			user_name: r.user_name,
-			title: r.title,
-			description: r.description,
-			created_at: r.created_at,
-			published_at: new Date(r.published_at),
-			url: r.url,
-			thumbnail_url: r.thumbnail_url,
-			view_count: r.view_count,
-			language: r.language,
-			type: r.type,
-			duration: r.duration,
-			muted_segments: r.muted_segments
+				id: r.id,
+				stream_id: r.stream_id,
+				user_id: r.user_id,
+				user_login: r.user_login,
+				user_name: r.user_name,
+				title: r.title,
+				description: r.description,
+				created_at: r.created_at,
+				published_at: new Date(r.published_at),
+				url: r.url,
+				thumbnail_url: r.thumbnail_url,
+				view_count: r.view_count,
+				language: r.language,
+				type: r.type,
+				duration: r.duration,
+				muted_segments: r.muted_segments
 			});
 		}
 	}
@@ -196,7 +196,7 @@ export async function vodGetting_fetch(channelName : string, data : Twitch.Chann
 		data.vodData.triesToGet--;
 		saveGlobalData();
 
-		const vodEntry = (await getHelixVideosResponse(`?user_id=${data.twitchChannelID}&first=1&sort=time&type=archive`)).get(channelName);
+		const vodEntry = (await getHelixVideosResponse(`user_id=${data.twitchChannelID}&first=1&sort=time&type=archive`)).get(channelName);
 		if (vodEntry != null) {
 			const ch = client.channels.cache.get(data.discordChannelID) as Discord.TextChannel;
 			const msg = (await ch.messages.fetch({limit: 5})).get(data.vodData.discordMessageID);
@@ -323,8 +323,8 @@ export function getTwitchStreamStartEmbed(user_name: string, user_login: string,
 }
 
 export function getTwitchStreamEndEmbed(user_name: string, user_login: string, title: string, games: string[], vodURL: string | null, vodCreatedAt: string, vodThumbnailURL: string | null, avatar: string | null) {
-	vodURL = vodURL || "https://twitch.tv/" + user_login;
-	const vodURLDescription = vodURL || "https://twitch.tv/" + user_login + "\n*(пытаюсь получить запись стрима)*\n";
+	vodURL = vodURL || ("https://twitch.tv/" + user_login);
+	const vodURLDescription = vodURL || ("https://twitch.tv/" + user_login + "\n*(пытаюсь получить запись стрима)*\n");
 	//vodCreatedAt = vodCreatedAt || started_at.toISOString();
 	vodThumbnailURL = vodThumbnailURL || twitchIcon;
 	return {content: "<@&773607854803255309>", embeds: [new Discord.EmbedBuilder()
