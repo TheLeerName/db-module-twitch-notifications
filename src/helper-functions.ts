@@ -371,6 +371,14 @@ export function durationStreamToHumanReadable(decimal: number): string {
 	return (h.length < 2 ? "0" + h : h) + ":" + (m.length < 2 ? "0" + m : m) + ":" + (s.length < 2 ? "0" + s : s);
 }
 
+export function getVODSavingTime(broadcaster_type: Twitch.TwitchBroadcasterType): number {
+	switch(broadcaster_type) {
+		case Twitch.TwitchBroadcasterType.PARTNER:   return 5184000000; // 60 days in ms
+		case Twitch.TwitchBroadcasterType.AFFILIATE: return 1209600000; // 14 days in ms
+		case Twitch.TwitchBroadcasterType.NORMAL:    return 604800000; // 7 days in ms
+	}
+}
+
 export function gamesToHumanReadable(arr: string[], lastToBeChoosed: boolean = true): string {
 	var str = '';
 	if (lastToBeChoosed) {
@@ -447,7 +455,7 @@ export function getTwitchStreamEndEmbed(channelData: Twitch.ChannelData, games: 
 		},
 		{
 			name: "Удаление записи",
-			value: `<t:${Math.floor(new Date(new Date().getTime() + 1209600000).getTime() / 1000)}:R>`,
+			value: `<t:${Math.floor(new Date(new Date().getTime() + getVODSavingTime(channelData.userData.broadcaster_type)).getTime() / 1000)}:R>`,
 			inline: true
 		},
 	)
@@ -483,7 +491,7 @@ export function getTwitchStreamEndEmbedFailedVOD(channelData: Twitch.ChannelData
 		},
 		{
 			name: "Удаление записи",
-			value: `<t:${Math.floor(new Date(new Date().getTime() + 1209600000).getTime() / 1000)}:R>`,
+			value: `<t:${Math.floor(new Date(new Date().getTime() + getVODSavingTime(channelData.userData.broadcaster_type)).getTime() / 1000)}:R>`,
 			inline: true
 		},
 	)
