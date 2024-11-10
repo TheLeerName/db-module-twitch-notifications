@@ -7,28 +7,26 @@ export interface GuildData {
 export interface ChannelData {
 	discordChannelID: string;
 	discordMessageID: string | null;
-	twitchChannelID: string;
 	games: string[];
-	avatar: string | null;
 
 	vodData: VODData | null;
+	userData: HelixUsersEntry;
 
 	live: boolean;
 	prevLive: boolean;
 }
 
 export interface VODData {
+	created_at: string | null;
+	title: string | null;
+	games: string[];
 	discordMessageID: string;
 	triesToGet: number;
+}
 
-	user_name: string;
-	title: string;
-	games: string[];
-
-	avatar: string | null;
-	url: string | null;
-	created_at: string | null;
-	thumbnail_url: string | null;
+export interface UpdateUserData {
+	userData: HelixUsersEntry | null;
+	channelData: ChannelData | null;
 }
 
 export enum TwitchStreamType {
@@ -79,8 +77,8 @@ export interface HelixStreamsEntry {
 	tags: string[];
 	/** count of viewers on stream, for example 78365 */
 	viewer_count: number;
-	/** Date object of when stream began, for example new Date("2021-03-10T15:04:21Z") */
-	started_at: Date;
+	/** when stream began, for example "2021-03-10T15:04:21Z" */
+	started_at: string;
 	/** language of stream in ISO 639-1 format, for example "es" */
 	language: string;
 	/** url of image of frame from last 5 min of stream, thumbnail is 1280x720, replace `{width}` and `{height}` with your preferred size, for example "https://static-cdn.jtvnw.net/previews-ttv/live_user_auronplay-{width}x{height}.jpg" */
@@ -98,9 +96,9 @@ export interface HelixUsersEntry {
 	/** channel display name, for example "SandySanderman" */
 	display_name: string;
 	/** type of user, for example "global_mod" */
-	type : TwitchUserType;
+	type: TwitchUserType;
 	/** type of broadcaster, for example "partner" */
-	broadcaster_type : TwitchBroadcasterType;
+	broadcaster_type: TwitchBroadcasterType;
 	/** description of user's channel, for example "494131" */
 	description: string;
 	/** url of user's profile image, for example "https://static-cdn.jtvnw.net/jtv_user_pictures/8a6381c7-d0c0-4576-b179-38bd5ce1d6af-profile_image-300x300.png" */
@@ -111,8 +109,8 @@ export interface HelixUsersEntry {
 	view_count: number;
 	/** user's verified email address, for example "not-real@email.com" */
 	email: string;
-	/** Date object of when user's account was created, for example new Date("2021-03-10T15:04:21Z") */
-	created_at: Date;
+	/** when user's account was created, for example "2021-03-10T15:04:21Z" */
+	created_at: string;
 }
 export interface HelixVideosEntry {
 	/** video id, for example "123456789" */
@@ -131,18 +129,18 @@ export interface HelixVideosEntry {
 	description: string;
 	/** when video was created, for example "2021-03-10T15:04:21Z" */
 	created_at: string;
-	/** Date object of when video was published, for example new Date("2021-03-10T15:04:21Z") */
-	published_at: Date;
-	/** url of video, for example new Date("2021-03-10T15:04:21Z") */
+	/** when video was published, for example "2021-03-10T15:04:21Z" */
+	published_at: string;
+	/** url of video, for example "2021-03-10T15:04:21Z" */
 	url: string;
-	/** url of thumbnail image of video, replace `%{width}` and `%{height}` with your preferred size (limit is 320x180), for example new Date("2021-03-10T15:04:21Z") */
+	/** url of thumbnail image of video, replace `%{width}` and `%{height}` with your preferred size (limit is 320x180), for example "2021-03-10T15:04:21Z" */
 	thumbnail_url: string;
 	/** number of times that users have watched video, for example 5980557 */
 	view_count: number;
 	/** language of video in ISO 639-1 format, for example "es" */
 	language: string;
 	/** type of video, for example "archive" */
-	type : TwitchVideoType;
+	type: TwitchVideoType;
 	/** length of video in ISO 8601 format, for example "5h3m21s" or "3m21s" */
 	duration: string;
 	/** segments that twitch audio recognition muted, otherwise null */
@@ -150,6 +148,6 @@ export interface HelixVideosEntry {
 }
 
 export class HelixStreamsData extends Map<string, HelixStreamsEntry> {
-	previous : Map<string, HelixStreamsEntry> | null;
+	previous: Map<string, HelixStreamsEntry> | null;
 	wasError: boolean;
 }
