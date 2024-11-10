@@ -302,7 +302,10 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 			L.info(`Got VOD! (stream was ended)`, {user: channelData.userData.display_name, url: vodEntry.url});
 
 			msg ??= (await getDiscordMessageByID(guildData, channelData, channelData.vodData.discordMessageID)).msg;
-			msg?.edit(await getTwitchStreamEndEmbed(channelData, channelData.vodData.games, vodEntry.title, vodEntry.url, vodEntry.created_at, vodEntry.thumbnail_url));
+			if (msg != null) {
+				msg.edit(await getTwitchStreamEndEmbed(channelData, channelData.vodData.games, vodEntry.title, vodEntry.url, durationStreamToHumanReadable(vodEntry.duration), vodEntry.thumbnail_url));
+				(await (await getThread(msg)).messages.fetch({limit: 1})).first()?.edit(getDiscordMessagePrefix(':red_circle: Стрим окончен', vodEntry.created_at));
+			}
 
 			channelData.vodData = null;
 			saveGlobalData();
@@ -313,7 +316,10 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 			L.error(`Can't get VOD of ended stream!`, {user: channelData.userData.display_name}, "Video not found");
 
 			msg ??= (await getDiscordMessageByID(guildData, channelData, channelData.vodData.discordMessageID)).msg;
-			msg?.edit(await getTwitchStreamEndEmbedFailedVOD(channelData, channelData.vodData.games, channelData.vodData.title, channelData.vodData.created_at));
+			if (msg != null) {
+				msg.edit(await getTwitchStreamEndEmbedFailedVOD(channelData, channelData.vodData.games, channelData.vodData.title, channelData.vodData.created_at != null ? decimalTimeToHumanReadable((new Date(Date.now()).getTime() - new Date(channelData.vodData.created_at).getTime()) / 1000) : null));
+				(await (await getThread(msg)).messages.fetch({limit: 1})).first()?.edit(getDiscordMessagePrefix(':red_circle: Стрим окончен', channelData.vodData.created_at));
+			}
 
 			channelData.vodData = null;
 			saveGlobalData();
@@ -355,7 +361,7 @@ export function getDiscordMessagePrefix(add: string | null, date?: string | null
   	return '<t:' + Math.floor((new Date(date ?? Date.now())).getTime() / 1000) + ':t> | ' + (add == null ? '' : add);
 }
 
-/*export function durationStreamToHumanReadable(str: string): string {
+export function durationStreamToHumanReadable(str: string): string {
 	var arr = str.replace('h', ':').replace('m', ':').replace('s', '').split(':');
 
 	for (let i = 0; i < arr.length; i++)
@@ -363,8 +369,9 @@ export function getDiscordMessagePrefix(add: string | null, date?: string | null
 		arr[i] = '0' + arr[i];
 
 	return arr.join(':');
-}*/
-export function durationStreamToHumanReadable(decimal: number): string {
+}
+
+export function decimalTimeToHumanReadable(decimal: number): string {
 	var h = Math.floor(decimal / 3600) + "";
 	var m = Math.floor((decimal % 3600) / 60) + "";
 	var s = Math.floor(decimal % 60) + "";
@@ -450,7 +457,7 @@ export function getTwitchStreamEndEmbed(channelData: Twitch.ChannelData, games: 
 		},
 		{
 			name: "Длительность",
-			value: created_at != null ? durationStreamToHumanReadable((new Date(Date.now()).getTime() - new Date(created_at).getTime()) / 1000) : ':hourglass_flowing_sand:',
+			value: created_at != null ? created_at : ':hourglass_flowing_sand:',
 			inline: true
 		},
 		{
@@ -486,7 +493,7 @@ export function getTwitchStreamEndEmbedFailedVOD(channelData: Twitch.ChannelData
 		},
 		{
 			name: "Длительность",
-			value: created_at != null ? durationStreamToHumanReadable((new Date(Date.now()).getTime() - new Date(created_at).getTime()) / 1000) : 'неизвестно',
+			value: created_at != null ? created_at : 'неизвестно',
 			inline: true
 		},
 		{

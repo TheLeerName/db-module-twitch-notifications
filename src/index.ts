@@ -396,7 +396,7 @@ async function callbackTwitchStreamEnd(guildData: Twitch.GuildData, channelData:
 	if (v.ch == null || v.msg == null) return;
 	v.ch.setName('『⚫』' + entry.user_login);
 
-	await v.msg.edit(Helper.getTwitchStreamEndEmbed(channelData, channelData.games, entry.title, null, entry.started_at, null));
+	await v.msg.edit(Helper.getTwitchStreamEndEmbed(channelData, channelData.games, entry.title, null, Helper.decimalTimeToHumanReadable((new Date(Date.now()).getTime() - new Date(entry.started_at).getTime()) / 1000), null));
 	await (await Helper.getThread(v.msg)).send(Helper.getDiscordMessagePrefix(':red_circle: Стрим окончен'));
 
 	Helper.vodGetting_start(channelData, entry, 360);
