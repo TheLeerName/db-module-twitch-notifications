@@ -396,7 +396,7 @@ export function getTwitchStreamStartEmbed(channelData: Twitch.ChannelData, entry
 	})
 	.setTitle(entry.title)
 	.setURL(`https://www.twitch.tv/${entry.user_login}`)
-	.setDescription(`https://www.twitch.tv/${entry.user_login}\n\n**Желаем вам хорошего просмотра!**\n`)
+	.setDescription(`${channelData.userData.description}\n\nhttps://www.twitch.tv/${entry.user_login}\n\n**Желаем вам приятного просмотра!**\n`)
 	.addFields(
 		{
 		name: "Игры",
@@ -433,7 +433,7 @@ export function getTwitchStreamEndEmbed(channelData: Twitch.ChannelData, games: 
 	})
 	.setTitle(title)
 	.setURL(url)
-	.setDescription(`${displayURL}\n\n**Желаем вам хорошего просмотра!**`)
+	.setDescription(`${channelData.userData.description}\n\n${displayURL}\n\n**Желаем вам приятного просмотра!**`)
 	.addFields(
 		{
 			name: "Игры",
@@ -469,7 +469,7 @@ export function getTwitchStreamEndEmbedFailedVOD(channelData: Twitch.ChannelData
 	})
 	.setTitle(title ?? 'неизвестно')
 	.setURL(url)
-	.setDescription(`${displayURL}\n\n**Желаем вам хорошего просмотра!**`)
+	.setDescription(`${channelData.userData.description}\n\n${displayURL}\n\n**Желаем вам приятного просмотра!**`)
 	.addFields(
 		{
 			name: "Игры",
