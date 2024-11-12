@@ -17,6 +17,7 @@ export interface ChannelData {
 }
 
 export interface VODData {
+	stream_id: string | null;
 	created_at: string | null;
 	title: string | null;
 	games: string[];

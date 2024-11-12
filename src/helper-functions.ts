@@ -279,6 +279,7 @@ export function vodGetting_start(channelData: Twitch.ChannelData, entry: Twitch.
 		return L.error('Tried to get discordMessageID', {user: channelData.userData.display_name}, 'Not specified');
 
 	channelData.vodData = {
+		stream_id: entry?.id ?? null,
 		created_at: entry?.started_at ?? null,
 		title: entry?.title ?? null,
 		games: channelData.games,
@@ -298,7 +299,7 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 		var msg: Discord.Message | null = null;
 
 		const vodEntry = (await getHelixVideosResponse(`user_id=${channelData.userData.id}&first=1&sort=time&type=archive`)).get(channelData.userData.id);
-		if (vodEntry != null) {
+		if (vodEntry?.stream_id != null && vodEntry.stream_id == channelData.vodData.stream_id) {
 			L.info(`Got VOD! (stream was ended)`, {user: channelData.userData.display_name, url: vodEntry.url});
 
 			msg ??= (await getDiscordMessageByID(guildData, channelData, channelData.vodData.discordMessageID)).msg;
