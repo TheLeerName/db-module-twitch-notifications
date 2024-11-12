@@ -279,6 +279,7 @@ export function vodGetting_start(channelData: Twitch.ChannelData, entry: Twitch.
 		return L.error('Tried to get discordMessageID', {user: channelData.userData.display_name}, 'Not specified');
 
 	channelData.vodData = {
+		ended_at: new Date(Date.now()).toUTCString(),
 		stream_id: entry?.id ?? null,
 		created_at: entry?.started_at ?? null,
 		title: entry?.title ?? null,
@@ -305,7 +306,7 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 			msg ??= (await getDiscordMessageByID(guildData, channelData, channelData.vodData.discordMessageID)).msg;
 			if (msg != null) {
 				msg.edit(await getTwitchStreamEndEmbed(channelData, channelData.vodData.games, vodEntry.title, vodEntry.url, durationStreamToHumanReadable(vodEntry.duration), vodEntry.thumbnail_url));
-				(await (await getThread(msg)).messages.fetch({limit: 1})).first()?.edit(getDiscordMessagePrefix(':red_circle: Стрим окончен', vodEntry.created_at));
+				(await (await getThread(msg)).messages.fetch({limit: 1})).first()?.edit(getDiscordMessagePrefix(':red_circle: Стрим окончен', durationStreamToDate(vodEntry.created_at, vodEntry.duration).toUTCString()));
 			}
 
 			channelData.vodData = null;
@@ -319,7 +320,7 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 			msg ??= (await getDiscordMessageByID(guildData, channelData, channelData.vodData.discordMessageID)).msg;
 			if (msg != null) {
 				msg.edit(await getTwitchStreamEndEmbedFailedVOD(channelData, channelData.vodData.games, channelData.vodData.title, channelData.vodData.created_at != null ? decimalTimeToHumanReadable((new Date(Date.now()).getTime() - new Date(channelData.vodData.created_at).getTime()) / 1000) : null));
-				(await (await getThread(msg)).messages.fetch({limit: 1})).first()?.edit(getDiscordMessagePrefix(':red_circle: Стрим окончен', channelData.vodData.created_at));
+				(await (await getThread(msg)).messages.fetch({limit: 1})).first()?.edit(getDiscordMessagePrefix(':red_circle: Стрим окончен', channelData.vodData.ended_at));
 			}
 
 			channelData.vodData = null;
@@ -360,6 +361,11 @@ export function translateToRU_gameName(game_name: string): string {
 
 export function getDiscordMessagePrefix(add: string | null, date?: string | null): string {
   	return '<t:' + Math.floor((new Date(date ?? Date.now())).getTime() / 1000) + ':t> | ' + (add == null ? '' : add);
+}
+
+export function durationStreamToDate(started_at: string, duration: string): Date {
+	var arr = duration.replace('h', ':').replace('m', ':').replace('s', '').split(':');
+	return new Date(new Date(started_at).getTime() + ((parseInt(arr[0]) * 3600 + parseInt(arr[1]) * 60 + parseInt(arr[2])) * 1000));
 }
 
 export function durationStreamToHumanReadable(str: string): string {
