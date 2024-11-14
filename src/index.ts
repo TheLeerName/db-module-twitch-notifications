@@ -5,7 +5,6 @@ import * as Helper from './helper-functions';
 
 import * as Discord from 'discord.js';
 import { fetch, setGlobalDispatcher, Agent } from 'undici';
-import JSON5 from 'json5';
 
 export const moduleName = "twitch-notifications";
 export const globalData: Map<string, Twitch.GuildData>  = new Map();
@@ -23,7 +22,7 @@ export async function getTwitchResponseJson(url: string) {
 	})).json();
 }
 //function getResponseJson() {
-//  return JSON5.parse(fs.readFileSync('twitchResponse.json5').toString());
+//  return JSON.parse(fs.readFileSync('twitchResponse.json').toString());
 //}
 
 export function main() {
@@ -244,7 +243,7 @@ async function messageCreate(message: Discord.Message) {
 				return;
 			}
 
-			await message.reply("Конфиг таков, рассказываю тебе я.\n```json\n" + JSON5.stringify(Helper.channelDataToObj(v.channelData), null, '\t') + "\n```");
+			await message.reply("Конфиг таков, рассказываю тебе я.\n```json\n" + JSON.stringify(Helper.channelDataToObj(v.channelData), null, '\t') + "\n```");
 		}
 		else if (content.startsWith('отправь конфиг')) {
 			content = content.substring('отправь конфиг'.length, content.length);
@@ -255,7 +254,7 @@ async function messageCreate(message: Discord.Message) {
 			for (let channelID of Object.keys(data.channels1)) data.channels.push(channelID);
 			Reflect.deleteProperty(data, 'channels1');
 
-			await message.reply("Конфиг таков, рассказываю тебе я.\n```json\n" + JSON5.stringify(data, null, '\t') + "\n```");
+			await message.reply("Конфиг таков, рассказываю тебе я.\n```json\n" + JSON.stringify(data, null, '\t') + "\n```");
 		}
 		else if (content.startsWith('отправь параметр ')) {
 			content = content.substring('отправь параметр '.length, content.length);
