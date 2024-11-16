@@ -329,10 +329,11 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 	}
 }
 
-export async function checkForStreamChange(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsEntry, prevEntry: Twitch.HelixStreamsEntry, msg: Discord.Message, entryName: string, emoji: string, displayName: string): Promise<boolean> {
+export async function checkForStreamChange(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsEntry, prevEntry: Twitch.HelixStreamsEntry, msg: Discord.Message, entryName: string, emoji: string, displayName: string, onChange?: ()=>void): Promise<boolean> {
 	const prevValue = Reflect.get(prevEntry, entryName);
 	const value = Reflect.get(entry, entryName);
 	if (value != prevValue) {
+		onChange?.();
 		await (await getThread(msg)).send(getDiscordMessagePrefix(`:${emoji}: ${displayName}: **${value}**`));
 		await msg.edit(getTwitchStreamStartEmbed(channelData, entry));
 
@@ -347,7 +348,7 @@ export async function checkForStreamChanges(guildData: Twitch.GuildData, channel
 	if (v.ch == null || v.msg == null) return;
 
 	await checkForStreamChange(channelData, entry, prevEntry, v.msg, 'viewer_count', 'bust_in_silhouette', 'Зрителей');
-	await checkForStreamChange(channelData, entry, prevEntry, v.msg, 'game_name', 'video_game', 'Текущая игра');
+	await checkForStreamChange(channelData, entry, prevEntry, v.msg, 'game_name', 'video_game', 'Текущая игра', () => channelData.games.push(entry.game_name));
 	await checkForStreamChange(channelData, entry, prevEntry, v.msg, 'title', 'speech_left', 'Название стрима');
 }
 
