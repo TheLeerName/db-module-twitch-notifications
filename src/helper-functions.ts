@@ -305,6 +305,7 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 
 			msg ??= (await getDiscordMessageByID(guildData, channelData, channelData.vodData.discordMessageID)).msg;
 			if (msg != null) {
+				L.info(`Updating discord message for ended stream`, {user: channelData.userData.display_name, messageID: channelData.vodData.discordMessageID, url: vodEntry.url});
 				msg.edit(await getTwitchStreamEndEmbed(channelData, channelData.vodData.games, vodEntry.title, vodEntry.url, durationStreamToHumanReadable(vodEntry.duration), vodEntry.thumbnail_url));
 				(await (await getThread(msg)).messages.fetch({limit: 1})).first()?.edit(getDiscordMessagePrefix(':red_circle: Стрим окончен', durationStreamToDate(vodEntry.created_at, vodEntry.duration).toUTCString()));
 			}
