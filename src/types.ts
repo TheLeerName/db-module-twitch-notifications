@@ -1,5 +1,4 @@
 export interface GuildData {
-	commandChannelID: string | null;
 	discordCategoryID: string;
 	channels: Map<string, ChannelData>;
 }
