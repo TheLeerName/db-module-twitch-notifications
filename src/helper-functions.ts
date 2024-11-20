@@ -23,7 +23,6 @@ export function saveGlobalData() {
 export function loadGlobalData() {
 	for (let [guildID, guildData] of Object.entries<any>(loadModuleData(moduleName))) {
 		const newGuildData: Twitch.GuildData = {
-			commandChannelID: guildData.commandChannelID,
 			discordCategoryID: guildData.discordCategoryID,
 			channels: new Map(Object.entries(guildData.channels))
 		};
@@ -61,7 +60,6 @@ export function guildDataToObj(guildData: Twitch.GuildData): any {
 		});
 
 	return {
-		commandChannelID: guildData.commandChannelID,
 		discordCategoryID: guildData.discordCategoryID,
 		channels: mapToObj(channels)
 	};
