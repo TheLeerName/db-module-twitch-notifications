@@ -7,7 +7,12 @@ import * as Discord from 'discord.js';
 import { fetch, setGlobalDispatcher, Agent } from 'undici';
 
 export const moduleName = "twitch-notifications";
-export const globalData: Map<string, Twitch.GuildData>  = new Map();
+export const guildsData: Map<string, Twitch.GuildData>  = new Map();
+export const moduleData: Twitch.ModuleData = {
+	twitchAccessToken: null
+};
+export var clientID: string = "";
+export var clientSecret: string = "";
 
 var fetchChannelsID = "";
 var headers = {
@@ -15,7 +20,7 @@ var headers = {
   "Authorization": ""
 };
 
-export async function getTwitchResponseJson(url: string) {
+export async function getTwitchResponseJson(url: string): Promise<any> {
 	return (await fetch(url, {
 		method: "GET",
 		headers: headers
@@ -30,9 +35,6 @@ export function main() {
 	// https://stackoverflow.com/a/76512104
 	setGlobalDispatcher(new Agent({ connect: { timeout: 60_000 } }) );
 
-	headers['Client-ID'] = configINI.get(moduleName, 'twitchClientID');
-	headers.Authorization = "Bearer " + configINI.get(moduleName, 'twitchAccessToken');
-
 	client.on("guildCreate", guildCreate);
 	client.on("guildDelete", guildDelete);
 	client.on("messageCreate", messageCreate);
@@ -40,7 +42,7 @@ export function main() {
 }
 
 async function guildCreate(guild: Discord.Guild) {
-	const prevGuildData = globalData.get(guild.id);
+	const prevGuildData = guildsData.get(guild.id);
 	var cat = prevGuildData != null ? guild.channels.cache.get(prevGuildData.discordCategoryID) : null;
 	if (cat == null) {
 		cat = await guild.channels.create({
@@ -50,16 +52,16 @@ async function guildCreate(guild: Discord.Guild) {
 		L.info('Creating new discord category', {guildName: guild.name});
 	}
 
-	globalData.set(guild.id, {
+	guildsData.set(guild.id, {
 		discordCategoryID: prevGuildData?.discordCategoryID ?? cat.id,
 		channels: prevGuildData?.channels ?? new Map()
 	});
-	Helper.saveGlobalData();
+	Helper.saveData();
 }
 
 async function guildDelete(guild: Discord.Guild) {
-	globalData.delete(guild.id);
-	Helper.saveGlobalData();
+	guildsData.delete(guild.id);
+	Helper.saveData();
 }
 
 async function messageCreate(message: Discord.Message) {
@@ -70,13 +72,13 @@ async function messageCreate(message: Discord.Message) {
 		});
 	}
 
-	var guildData = globalData.get(message.guild.id);
+	var guildData = guildsData.get(message.guild.id);
 	if (guildData == null) {
 		L.error('where the fuck server config? im creating it rn', {
 			server: message.guild.name
 		});
 		await guildCreate(message.guild);
-		guildData = globalData.get(message.guild.id);
+		guildData = guildsData.get(message.guild.id);
 	}
 	if (guildData == null) {
 		L.error('fuck. i cant.');
@@ -177,7 +179,7 @@ async function messageCreate(message: Discord.Message) {
 					prevValue = Reflect.get(guildData, paramName);
 					Reflect.set(guildData, paramName, values);
 				}
-				Helper.saveGlobalData();
+				Helper.saveData();
 
 				await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON.stringify(prevValue)}\` на \`${JSON.stringify(values)}\` значение, рассказываю тебе я.`);
 			}
@@ -223,7 +225,7 @@ async function messageCreate(message: Discord.Message) {
 					prevValue = Reflect.get(v.channelData, paramName);
 					Reflect.set(v.channelData, paramName, values);
 				}
-				Helper.saveGlobalData();
+				Helper.saveData();
 
 				await message.reply(`Успешно изменён был \`${displayParamName}\` параметр со значения \`${JSON.stringify(prevValue)}\` на \`${JSON.stringify(values)}\` значение, рассказываю тебе я.`);
 			}
@@ -284,16 +286,31 @@ async function messageCreate(message: Discord.Message) {
 }
 
 async function ready() {
-	Helper.loadGlobalData();
-	updateFetchChannelsID();
-	twitchFetch();
+	Helper.getData();
+
+	clientID = configINI.get(moduleName, 'twitchClientID');
+	clientSecret = configINI.get(moduleName, 'twitchClientSecret');
+	if (clientID != null && clientSecret != null) {
+		updateFetchChannelsID();
+
+		try {
+			await Helper.validateAccessToken(clientID, clientSecret);
+		} catch(e) {
+			L.error('Validating access token failed!', {clientID, clientSecret}, e);
+		}
+
+		twitchFetch();
+	} else
+		L.error('clientID or clientSecret is not specified');
 }
 
 export function updateFetchChannelsID() {
+	headers['Client-ID'] = clientID;
+	headers.Authorization = "Bearer " + moduleData.twitchAccessToken;
 	fetchChannelsID = "";
 
 	var arr: string[] = [];
-	for (let guildData of globalData.values()) {
+	for (let guildData of guildsData.values()) {
 		for (let channelID of guildData.channels.keys())
 			if (!arr.includes(channelID))
 				arr.push(channelID);
@@ -309,7 +326,7 @@ const helixData: Twitch.HelixStreamsData = new Twitch.HelixStreamsData();
 async function twitchFetch() {
 	await Helper.getHelixStreamsResponse(helixData, fetchChannelsID);
 	if (!helixData.wasError) {
-		for (let guildData of globalData.values()) for (let [channelID, channelData] of guildData.channels) {
+		for (let guildData of guildsData.values()) for (let [channelID, channelData] of guildData.channels) {
 			const entry = helixData.get(channelID)!;
 			const prevEntry = helixData.previous?.get(channelID)!;
 
@@ -336,7 +353,7 @@ async function twitchFetch() {
 
 						channelData.discordMessageID = null;
 						channelData.games = [];
-						Helper.saveGlobalData();
+						Helper.saveData();
 					}
 				}
 			}
@@ -358,7 +375,7 @@ async function twitchFetch() {
 	setTimeout(twitchFetch, 5000);
 }
 
-async function callbackTwitchStreamStart(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsEntry) {
+async function callbackTwitchStreamStart(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry) {
 	await Helper.updateUserDataByID(guildData, channelData.userData.id);
 
 	const ch = (await Helper.getDiscordMessageByID(guildData, channelData, null)).ch;
@@ -366,7 +383,7 @@ async function callbackTwitchStreamStart(guildData: Twitch.GuildData, channelDat
 	ch.setName('『🔴』' + entry.user_login);
 
 	channelData.games.push(entry.game_name);
-	Helper.saveGlobalData();
+	Helper.saveData();
 
 	const msg = await ch.send(Helper.getTwitchStreamStartEmbed(channelData, entry));
 	const thr = await Helper.getThread(msg);
@@ -374,12 +391,12 @@ async function callbackTwitchStreamStart(guildData: Twitch.GuildData, channelDat
 	await thr.send(Helper.getDiscordMessagePrefix(`:video_game: Текущая игра: **${entry.game_name}**`, entry.started_at));
 
 	channelData.discordMessageID = msg.id;
-	Helper.saveGlobalData();
+	Helper.saveData();
 
 	L.info(`Stream started`, {user: entry.user_name});
 }
 
-async function callbackTwitchStreamEnd(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsEntry) {
+async function callbackTwitchStreamEnd(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry) {
 	const v = await Helper.getDiscordMessageByID(guildData, channelData, channelData.discordMessageID);
 	if (v.ch == null || v.msg == null) return;
 	v.ch.setName('『⚫』' + entry.user_login);
@@ -391,7 +408,7 @@ async function callbackTwitchStreamEnd(guildData: Twitch.GuildData, channelData:
 
 	channelData.discordMessageID = null;
 	channelData.games = [];
-	Helper.saveGlobalData();
+	Helper.saveData();
 
 	L.info(`Stream ended`, {user: entry.user_name});
 }

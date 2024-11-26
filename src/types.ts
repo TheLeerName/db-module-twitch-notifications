@@ -9,7 +9,7 @@ export interface ChannelData {
 	games: string[];
 
 	vodData: VODData | null;
-	userData: HelixUsersEntry;
+	userData: HelixUsersResponseEntry;
 
 	live: boolean;
 	prevLive: boolean;
@@ -25,9 +25,29 @@ export interface VODData {
 	triesToGet: number;
 }
 
+export interface ModuleData {
+	twitchAccessToken: string | null;
+}
+
 export interface UpdateUserData {
-	userData: HelixUsersEntry | null;
+	userData: HelixUsersResponseEntry | null;
 	channelData: ChannelData | null;
+}
+
+export interface OAuth2TokenClientCredentialsResponse {
+	/** the authenticated token, to be used for various API endpoints and EventSub subscriptions, can be `null` if request failed */
+	access_token: string | null;
+	/** date object of access token expiration date, can be `null` if request failed */
+	expires_in_date: Date | null;
+	/** time in milliseconds until the code is no longer valid, can be `null` if request failed */
+	expires_in: number | null;
+	/** generally will be `"bearer"`, can be `null` if request failed */
+	token_type: string | null;
+
+	/** returns error code if request failed, otherwise `null` */
+	status: number | null;
+	/** returns error message if request failed, otherwise `null` */
+	message: string | null;
 }
 
 export enum TwitchStreamType {
@@ -51,15 +71,24 @@ export enum TwitchVideoType {
 	UPLOAD = "upload"
 }
 
-export interface TwitchMutedSegment {
-	/** duration of muted segment, in seconds */
-	duration: number,
-	/** offset from beginning of video where muted segment begins, in seconds */
-	offset: number
-}
-
 // https://dev.twitch.tv/docs/api/reference
-export interface HelixStreamsEntry {
+export interface HelixStreamsResponse {
+	/** The list of live streams of broadcasters that the specified user follows. The list is in descending order by the number of viewers watching the stream. Because viewers come and go during a stream, it’s possible to find duplicate or missing streams in the list as you page through the results. The list is empty if none of the followed broadcasters are streaming live. */
+	data: HelixStreamsResponseEntry[] | null;
+	/** The information used to page through the list of results. The object is empty if there are no more pages left to page through. */
+	pagination: {
+		/** The cursor used to get the next page of results. Set the request’s after query parameter to this value. */
+		cursor: string
+	} | null;
+
+	/** contains error type if request failed, otherwise `null` */
+	error: "Unauthorized" | "Bad Request" | null;
+	/** contains error code if request failed, otherwise `null` */
+	status: 401 | 400 | null;
+	/** contains error description if request failed, otherwise `null` */
+	message: string | null;
+}
+export interface HelixStreamsResponseEntry {
 	/** stream id, for example "123456789" */
 	id: string;
 	/** channel id, for example "98765" */
@@ -72,10 +101,10 @@ export interface HelixStreamsEntry {
 	game_id: string;
 	/** category or game name of stream, for example "Little Nightmares" */
 	game_name: string;
+	/** type of stream, generally is `"live"` */
+	type: string;
 	/** title of stream, for example "hablamos y le damos a Little Nightmares 1" */
 	title: string;
-	/** tags of stream, for example ["Español"] */
-	tags: string[];
 	/** count of viewers on stream, for example 78365 */
 	viewer_count: number;
 	/** when stream began, for example "2021-03-10T15:04:21Z" */
@@ -86,10 +115,29 @@ export interface HelixStreamsEntry {
 	thumbnail_url: string;
 	/** deprecated from 28.02.2023, use tags field instead */
 	tag_ids: string[];
+	/** tags of stream, for example ["Español"] */
+	tags: string[];
 	/** indicates whether stream is meant for mature audiences, for example false */
 	is_mature: boolean;
 }
-export interface HelixUsersEntry {
+
+export interface HelixUsersResponse {
+	/** The list of users. */
+	data: HelixUsersResponseEntry[] | null;
+	/** The information used to page through the list of results. The object is empty if there are no more pages left to page through. */
+	pagination: {
+		/** The cursor used to get the next page of results. Set the request’s after query parameter to this value. */
+		cursor: string
+	} | null;
+
+	/** contains error type if request failed, otherwise `null` */
+	error: "Unauthorized" | "Bad Request" | null;
+	/** contains error code if request failed, otherwise `null` */
+	status: 401 | 400 | null;
+	/** contains error description if request failed, otherwise `null` */
+	message: string | null;
+}
+export interface HelixUsersResponseEntry {
 	/** stream id, for example "123456789" */
 	id: string;
 	/** channel name, for example "sandysanderman" */
@@ -113,7 +161,19 @@ export interface HelixUsersEntry {
 	/** when user's account was created, for example "2021-03-10T15:04:21Z" */
 	created_at: string;
 }
-export interface HelixVideosEntry {
+
+export interface HelixVideosResponse {
+	/** The list of users. */
+	data: HelixVideosResponseEntry[] | null;
+
+	/** contains error type if request failed, otherwise `null` */
+	error: "Unauthorized" | "Bad Request" | "Not Found" | null;
+	/** contains error code if request failed, otherwise `null` */
+	status: 401 | 400 | 404 | null;
+	/** contains error description if request failed, otherwise `null` */
+	message: string | null;
+}
+export interface HelixVideosResponseEntry {
 	/** video id, for example "123456789" */
 	id: string;
 	/** stream id if video type is archive, otherwise `null`, for example "123456789" */
@@ -145,10 +205,15 @@ export interface HelixVideosEntry {
 	/** length of video in ISO 8601 format, for example "5h3m21s" or "3m21s" */
 	duration: string;
 	/** segments that twitch audio recognition muted, otherwise null */
-	muted_segments: TwitchMutedSegment[] | null;
+	muted_segments: {
+		/** duration of muted segment, in seconds */
+		duration: number,
+		/** offset from beginning of video where muted segment begins, in seconds */
+		offset: number
+	}[] | null;
 }
 
-export class HelixStreamsData extends Map<string, HelixStreamsEntry> {
-	previous: Map<string, HelixStreamsEntry> | null;
+export class HelixStreamsData extends Map<string, HelixStreamsResponseEntry> {
+	previous: Map<string, HelixStreamsResponseEntry> | null;
 	wasError: boolean;
 }

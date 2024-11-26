@@ -1,7 +1,7 @@
-import { client, loadModuleData, saveModuleData } from './../../../src/index';
+import { client, getModuleGuildsData, getModuleData, saveModuleData } from './../../../src/index';
 import * as L from './../../../src/logger';
 import * as Twitch from './types';
-import { updateFetchChannelsID, getTwitchResponseJson, moduleName, globalData } from './index';
+import { updateFetchChannelsID, getTwitchResponseJson, moduleName, guildsData, moduleData, clientID, clientSecret } from './index';
 
 import * as Discord from 'discord.js';
 
@@ -11,23 +11,25 @@ export const helixVideosURL = "https://api.twitch.tv/helix/videos?";
 export const helixUsersURL = "https://api.twitch.tv/helix/users?";
 export const helixStreamsURL = "https://api.twitch.tv/helix/streams?";
 
-export function saveGlobalData() {
-	const json: any = {};
+export function saveData() {
+	const guildsJson: any = {};
+	for (let [guildID, guildData] of guildsData)
+		guildsJson[guildID] = guildDataToObj(guildData);
 
-	for (let [guildID, guildData] of globalData)
-		json[guildID] = guildDataToObj(guildData);
-
-	saveModuleData(moduleName, json);
+	saveModuleData(moduleName, guildsJson, moduleData);
 }
 
-export function loadGlobalData() {
-	for (let [guildID, guildData] of Object.entries<any>(loadModuleData(moduleName))) {
+export function getData() {
+	for (let [guildID, guildData] of Object.entries<any>(getModuleGuildsData(moduleName))) {
 		const newGuildData: Twitch.GuildData = {
 			discordCategoryID: guildData.discordCategoryID,
 			channels: new Map(Object.entries(guildData.channels))
 		};
-		globalData.set(guildID, newGuildData);
+		guildsData.set(guildID, newGuildData);
 	}
+
+	for (let [id, val] of Object.entries<any>(getModuleData(moduleName))) if (Reflect.has(moduleData, id))
+		Reflect.set(moduleData, id, val);
 }
 
 const numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -97,7 +99,7 @@ export async function getDiscordMessageByID(guildData: Twitch.GuildData, channel
 			L.error('Tried to get Discord.Message from discordMessageID from last 5 messages', {user: channelData.userData.display_name}, 'Message is not exists, maybe it was deleted?');
 			channelData.discordMessageID = null;
 			channelData.games = [];
-			saveGlobalData();
+			saveData();
 			return v;
 		}
 	}
@@ -108,14 +110,14 @@ export async function getDiscordMessageByID(guildData: Twitch.GuildData, channel
 export function addTwitchChannelInData(guildData: Twitch.GuildData, channelData: Twitch.ChannelData) {
 	L.info('Adding twitch channel to listening', {user: channelData.userData.display_name});
 	guildData.channels.set(channelData.userData.id, channelData);
-	saveGlobalData();
+	saveData();
 	updateFetchChannelsID();
 }
 
 export function removeTwitchChannelInData(guildData: Twitch.GuildData, channelData: Twitch.ChannelData) {
 	L.info('Removing twitch channel from listening', {user: channelData.userData.display_name});
 	guildData.channels.delete(channelData.userData.id);
-	saveGlobalData();
+	saveData();
 	updateFetchChannelsID();
 }
  
@@ -133,7 +135,7 @@ export async function updateUserDataByLogin(guildData: Twitch.GuildData, login: 
 	return r;
 }
 /** @see https://dev.twitch.tv/docs/api/reference/#get-users */
-export async function getUserDataByLogin(login: string): Promise<Twitch.HelixUsersEntry | null> {
+export async function getUserDataByLogin(login: string): Promise<Twitch.HelixUsersResponseEntry | null> {
 	return mapFirstValue(await getHelixUsersResponse('login=' + login));
 }
 
@@ -151,82 +153,84 @@ export async function updateUserDataByID(guildData: Twitch.GuildData, id: string
 	return r;
 }
 /** @see https://dev.twitch.tv/docs/api/reference/#get-users */
-export async function getUserDataByID(id: string): Promise<Twitch.HelixUsersEntry | null> {
+export async function getUserDataByID(id: string): Promise<Twitch.HelixUsersResponseEntry | null> {
 	return mapFirstValue(await getHelixUsersResponse('id=' + id));
 }
 
+export async function validateAccessToken(clientID: string, clientSecret: string) {
+	if (moduleData.twitchAccessToken == null || (await getTwitchResponseJson(helixStreamsURL + 'first=1')).error == "Unauthorized") {
+		const tokenResponse: Twitch.OAuth2TokenClientCredentialsResponse = await (await fetch(`https://id.twitch.tv/oauth2/token?client_id=${clientID}&client_secret=${clientSecret}&grant_type=client_credentials`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+		})).json();
+
+		L.info('Got new access token', {clientID, clientSecret, accessToken: tokenResponse.access_token});
+		moduleData.twitchAccessToken = tokenResponse.access_token;
+		updateFetchChannelsID();
+		saveData();
+	}
+}
+
 /** @see https://dev.twitch.tv/docs/api/reference/#get-videos */
-export async function getHelixVideosResponse(args: string): Promise<Map<string, Twitch.HelixVideosEntry>> {
-	var json: any = null;
+export async function getHelixVideosResponse(args: string): Promise<Map<string, Twitch.HelixVideosResponseEntry>> {
+	var map: Map<string, Twitch.HelixVideosResponseEntry> = new Map();
+	var json: Twitch.HelixVideosResponse;
 	try {
 		json = await getTwitchResponseJson(helixVideosURL + args);
+		if (json.error == "Unauthorized") {
+			await validateAccessToken(clientID, clientSecret);
+			return await getHelixVideosResponse(args);
+		}
+		if (json.error != null)
+			throw `${json.error}: ${json.message}`;
 	} catch(e) {
 		L.error(`Fetch helix/videos failed!`, {args}, e);
+		return map;
 	}
 
-	var map: Map<string, Twitch.HelixVideosEntry> = new Map();
-	if (json?.data != null) {
-		for (let r of json.data) {
-			map.set(r.user_id, {
-				id: r.id,
-				stream_id: r.stream_id,
-				user_id: r.user_id,
-				user_login: r.user_login,
-				user_name: r.user_name,
-				title: r.title,
-				description: r.description,
-				created_at: r.created_at,
-				published_at: r.published_at,
-				url: r.url,
-				thumbnail_url: r.thumbnail_url,
-				view_count: r.view_count,
-				language: r.language,
-				type: r.type,
-				duration: r.duration,
-				muted_segments: r.muted_segments
-			});
-		}
-	}
+	if (json?.data != null) for (let r of json.data)
+		map.set(r.user_id, r);
 	return map;
 }
 
 /** @see https://dev.twitch.tv/docs/api/reference/#get-users */
-export async function getHelixUsersResponse(args: string): Promise<Map<string, Twitch.HelixUsersEntry>> {
-	var json: any = null;
+export async function getHelixUsersResponse(args: string): Promise<Map<string, Twitch.HelixUsersResponseEntry>> {
+	var map: Map<string, Twitch.HelixUsersResponseEntry> = new Map();
+	var json: Twitch.HelixUsersResponse;
 	try {
 		json = await getTwitchResponseJson(helixUsersURL + args);
+		if (json.error == "Unauthorized") {
+			await validateAccessToken(clientID, clientSecret);
+			return await getHelixUsersResponse(args);
+		}
+		if (json.error != null)
+			throw `${json.error}: ${json.message}`;
 	} catch(e) {
 		L.error(`Fetch helix/users failed!`, {args}, e);
+		return map;
 	}
 
-	var map: Map<string, Twitch.HelixUsersEntry> = new Map();
-	if (json?.data != null) {
-		for (let r of json.data) {
-			map.set(r.id, {
-				id: r.id,
-				login: r.login,
-				display_name: r.display_name,
-				type: r.type,
-				broadcaster_type: r.broadcaster_type,
-				description: r.description,
-				profile_image_url: r.profile_image_url,
-				offline_image_url: r.offline_image_url,
-				view_count: r.view_count,
-				email: r.email,
-				created_at: r.created_at
-			});
-		}
-	}
+	if (json?.data != null) for (let r of json.data)
+		map.set(r.id, r);
 	return map;
 }
 
 /** @see https://dev.twitch.tv/docs/api/reference/#get-streams */
-export async function getHelixStreamsResponse(helix: Twitch.HelixStreamsData, args: string): Promise<Twitch.HelixStreamsData> {
-	var json: any = null;
+export async function getHelixStreamsResponse(helix: Twitch.HelixStreamsData, args: string) {
+	var json: Twitch.HelixStreamsResponse;
 	try {
 		json = await getTwitchResponseJson(helixStreamsURL + args);
+		if (json.error == "Unauthorized") {
+			await validateAccessToken(clientID, clientSecret);
+			await getHelixStreamsResponse(helix, args);
+			return;
+		}
+		if (json.error != null)
+			throw `${json.error}: ${json.message}`;
 	} catch(e) {
-		L.error(`Fetch helix/streams failed!`, {args}, e);
+		return L.error(`Fetch helix/streams failed!`, {args}, e);
 	}
 
 	//const json = getResponseJson();
@@ -245,32 +249,14 @@ export async function getHelixStreamsResponse(helix: Twitch.HelixStreamsData, ar
 		}
 
 		helix.clear();
-		for (let r of json.data) {
-			helix.set(r.user_id, {
-				id: r.id,
-				user_id: r.user_id,
-				user_login: r.user_login,
-				user_name: r.user_name,
-				game_id: r.game_id,
-				game_name: r.game_name,
-				title: r.title,
-				tags: r.tags,
-				viewer_count: r.viewer_count,
-				started_at: r.started_at,
-				language: r.language,
-				thumbnail_url: r.thumbnail_url,
-				tag_ids: r.tag_ids,
-				is_mature: r.is_mature
-			});
-		}
+		for (let r of json.data) helix.set(r.user_id, r);
 	} else {
 		helix.previous = null;
 		helix.wasError = true;
 	}
-	return helix;
 }
 
-export function vodGetting_start(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsEntry | null, triesToGet: number) {
+export function vodGetting_start(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry | null, triesToGet: number) {
 	if (channelData.vodData != null)
 		return L.error('Tried to change vodData', {user: channelData.userData.display_name}, 'Already specified');
 	if (channelData.discordMessageID == null)
@@ -285,7 +271,7 @@ export function vodGetting_start(channelData: Twitch.ChannelData, entry: Twitch.
 		discordMessageID: channelData.discordMessageID,
 		triesToGet,
 	};
-	saveGlobalData();
+	saveData();
 }
 
 export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData: Twitch.ChannelData) {
@@ -293,7 +279,7 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 
 	if (channelData.vodData.triesToGet > 0) {
 		channelData.vodData.triesToGet--;
-		saveGlobalData();
+		saveData();
 
 		var msg: Discord.Message | null = null;
 
@@ -309,7 +295,7 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 			}
 
 			channelData.vodData = null;
-			saveGlobalData();
+			saveData();
 			return;
 		}
 
@@ -323,12 +309,12 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 			}
 
 			channelData.vodData = null;
-			saveGlobalData();
+			saveData();
 		}
 	}
 }
 
-export async function checkForStreamChange(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsEntry, prevEntry: Twitch.HelixStreamsEntry, msg: Discord.Message, entryName: string, emoji: string, displayName: string, onChange?: ()=>void): Promise<boolean> {
+export async function checkForStreamChange(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry, msg: Discord.Message, entryName: string, emoji: string, displayName: string, onChange?: ()=>void): Promise<boolean> {
 	const prevValue = Reflect.get(prevEntry, entryName);
 	const value = Reflect.get(entry, entryName);
 	if (value != prevValue) {
@@ -342,7 +328,7 @@ export async function checkForStreamChange(channelData: Twitch.ChannelData, entr
 	return false;
 }
 
-export async function checkForStreamChanges(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsEntry, prevEntry: Twitch.HelixStreamsEntry, discordMessageID: string) {
+export async function checkForStreamChanges(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry, discordMessageID: string) {
 	const v = await getDiscordMessageByID(guildData, channelData, discordMessageID);
 	if (v.ch == null || v.msg == null) return;
 
@@ -409,7 +395,7 @@ export function gamesToHumanReadable(arr: string[], lastToBeChoosed: boolean = t
 	return str;
 }
 
-export function getTwitchStreamStartEmbed(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsEntry) {
+export function getTwitchStreamStartEmbed(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry) {
 	return {content: "<@&773607854803255309>", embeds: [new Discord.EmbedBuilder()
 	.setAuthor({
 		name: `${entry.user_name} в эфире на Twitch!`,
@@ -527,7 +513,7 @@ export async function getThread(msg: Discord.Message) {
 }
 
 export async function createDiscordNotificationChannel(guildID: string, channelData: Twitch.ChannelData): Promise<Discord.NewsChannel | null> {
-	const guildData = globalData.get(guildID);
+	const guildData = guildsData.get(guildID);
 	const guild = client.guilds.cache.get(guildID);
 	if (guildData == null || guild == null) return null;
 
@@ -537,7 +523,7 @@ export async function createDiscordNotificationChannel(guildID: string, channelD
 		parent: guildData.discordCategoryID,
 	}).then(channel => channel.setTopic(`Оповещения о стримах Twitch-канала ${channelData.userData.display_name}. Каждое сообщение обновляется самописным ботом! Если в названии канала кружок красный, это значит канал сейчас в эфире!`));
 	channelData.discordChannelID = ch.id;
-	saveGlobalData();
+	saveData();
 	L.info(`Created notifications channel`, {user: channelData.userData.display_name});
 
 	return ch;

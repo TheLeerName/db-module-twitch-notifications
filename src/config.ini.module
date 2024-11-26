@@ -1,4 +1,4 @@
 # twitch app client id: https://dev.twitch.tv/console/apps
 twitchClientID=
-# twitch app access token (resets after 2 months as i remember): https://dev.twitch.tv/console/apps
-twitchAccessToken=
+# twitch app client secret: https://dev.twitch.tv/console/apps
+twitchClientSecret=
