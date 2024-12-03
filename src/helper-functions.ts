@@ -1,12 +1,12 @@
 import { client, getModuleGuildsData, getModuleData, saveModuleData } from './../../../src/index';
 import * as L from './../../../src/logger';
-import * as Twitch from './types';
+import * as Twitch from './twitch-types';
+import * as Types from './types';
 import { updateFetchChannelsID, getTwitchResponseJson, moduleName, guildsData, moduleData, clientID, clientSecret } from './index';
 
 import * as Discord from 'discord.js';
 
 const twitchIcon = "https://pngimg.com/d/twitch_PNG13.png";
-
 export const helixVideosURL = "https://api.twitch.tv/helix/videos?";
 export const helixUsersURL = "https://api.twitch.tv/helix/users?";
 export const helixStreamsURL = "https://api.twitch.tv/helix/streams?";
@@ -19,13 +19,14 @@ export function saveData() {
 	saveModuleData(moduleName, guildsJson, moduleData);
 }
 
-export function getData() {
+export async function getData() {
 	for (let [guildID, guildData] of Object.entries<any>(getModuleGuildsData(moduleName))) {
-		const newGuildData: Twitch.GuildData = {
+		const newGuildData: Types.GuildData = {
 			discordCategoryID: guildData.discordCategoryID,
+			pingRoleID: guildData.pingRoleID,
 			channels: new Map(Object.entries(guildData.channels))
 		};
-		guildsData.set(guildID, newGuildData);
+		guildsData.set(guildID, await validateGuildData(guildID, newGuildData));
 	}
 
 	for (let [id, val] of Object.entries<any>(getModuleData(moduleName))) if (Reflect.has(moduleData, id))
@@ -50,7 +51,7 @@ export function mapFirstValue<K, V>(map: Map<K, V>): V | null {
 	return null;
 }
 
-export function guildDataToObj(guildData: Twitch.GuildData): any {
+export function guildDataToObj(guildData: Types.GuildData): any {
 	const channels: Map<string, any> = new Map();
 	for (let [channelID, channelData] of guildData.channels)
 		channels.set(channelID, {
@@ -63,11 +64,12 @@ export function guildDataToObj(guildData: Twitch.GuildData): any {
 
 	return {
 		discordCategoryID: guildData.discordCategoryID,
+		pingRoleID: guildData.pingRoleID,
 		channels: mapToObj(channels)
 	};
 }
 
-export function channelDataToObj(channelData: Twitch.ChannelData): any {
+export function channelDataToObj(channelData: Types.ChannelData): any {
 	return {
 		discordChannelID: channelData.discordChannelID,
 		discordMessageID: channelData.discordMessageID,
@@ -81,7 +83,7 @@ export function getDiscordTextChannelByID(id: string): Discord.TextChannel | nul
 	return (client.channels.cache.get(id) ?? null) as Discord.TextChannel | null;
 }
 
-export async function getDiscordMessageByID(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, discordMessageID: string | null): Promise<{ch: Discord.TextChannel | null, msg: Discord.Message | null}> {
+export async function getDiscordMessageByID(guildData: Types.GuildData, channelData: Types.ChannelData, discordMessageID: string | null): Promise<{ch: Discord.TextChannel | null, msg: Discord.Message | null}> {
 	const v: {ch: Discord.TextChannel | null, msg: Discord.Message | null} = {
 		ch: getDiscordTextChannelByID(channelData.discordChannelID),
 		msg: null
@@ -107,14 +109,14 @@ export async function getDiscordMessageByID(guildData: Twitch.GuildData, channel
 	return v;
 }
 
-export function addTwitchChannelInData(guildData: Twitch.GuildData, channelData: Twitch.ChannelData) {
+export function addTwitchChannelInData(guildData: Types.GuildData, channelData: Types.ChannelData) {
 	L.info('Adding twitch channel to listening', {user: channelData.userData.display_name});
 	guildData.channels.set(channelData.userData.id, channelData);
 	saveData();
 	updateFetchChannelsID();
 }
 
-export function removeTwitchChannelInData(guildData: Twitch.GuildData, channelData: Twitch.ChannelData) {
+export function removeTwitchChannelInData(guildData: Types.GuildData, channelData: Types.ChannelData) {
 	L.info('Removing twitch channel from listening', {user: channelData.userData.display_name});
 	guildData.channels.delete(channelData.userData.id);
 	saveData();
@@ -122,8 +124,8 @@ export function removeTwitchChannelInData(guildData: Twitch.GuildData, channelDa
 }
  
 /** @see https://dev.twitch.tv/docs/api/reference/#get-users */
-export async function updateUserDataByLogin(guildData: Twitch.GuildData, login: string): Promise<Twitch.UpdateUserData> {
-	const r: Twitch.UpdateUserData = {
+export async function updateUserDataByLogin(guildData: Types.GuildData, login: string): Promise<Types.UpdateUserData> {
+	const r: Types.UpdateUserData = {
 		userData: await getUserDataByLogin(login),
 		channelData: null
 	};
@@ -140,8 +142,8 @@ export async function getUserDataByLogin(login: string): Promise<Twitch.HelixUse
 }
 
 /** @see https://dev.twitch.tv/docs/api/reference/#get-users */
-export async function updateUserDataByID(guildData: Twitch.GuildData, id: string): Promise<Twitch.UpdateUserData> {
-	const r: Twitch.UpdateUserData = {
+export async function updateUserDataByID(guildData: Types.GuildData, id: string): Promise<Types.UpdateUserData> {
+	const r: Types.UpdateUserData = {
 		userData: await getUserDataByID(id),
 		channelData: null
 	};
@@ -180,6 +182,7 @@ export async function getHelixVideosResponse(args: string): Promise<Map<string, 
 	try {
 		json = await getTwitchResponseJson(helixVideosURL + args);
 		if (json.error == "Unauthorized") {
+			moduleData.twitchAccessToken = null;
 			await validateAccessToken(clientID, clientSecret);
 			return await getHelixVideosResponse(args);
 		}
@@ -218,7 +221,7 @@ export async function getHelixUsersResponse(args: string): Promise<Map<string, T
 }
 
 /** @see https://dev.twitch.tv/docs/api/reference/#get-streams */
-export async function getHelixStreamsResponse(helix: Twitch.HelixStreamsData, args: string) {
+export async function getHelixStreamsResponse(helix: Types.HelixStreamsData, args: string) {
 	var json: Twitch.HelixStreamsResponse;
 	try {
 		json = await getTwitchResponseJson(helixStreamsURL + args);
@@ -230,6 +233,7 @@ export async function getHelixStreamsResponse(helix: Twitch.HelixStreamsData, ar
 		if (json.error != null)
 			throw `${json.error}: ${json.message}`;
 	} catch(e) {
+		helix.wasError = true;
 		return L.error(`Fetch helix/streams failed!`, {args}, e);
 	}
 
@@ -256,7 +260,7 @@ export async function getHelixStreamsResponse(helix: Twitch.HelixStreamsData, ar
 	}
 }
 
-export function vodGetting_start(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry | null, triesToGet: number) {
+export function vodGetting_start(channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry | null, triesToGet: number) {
 	if (channelData.vodData != null)
 		return L.error('Tried to change vodData', {user: channelData.userData.display_name}, 'Already specified');
 	if (channelData.discordMessageID == null)
@@ -274,7 +278,7 @@ export function vodGetting_start(channelData: Twitch.ChannelData, entry: Twitch.
 	saveData();
 }
 
-export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData: Twitch.ChannelData) {
+export async function vodGetting_fetch(guildData: Types.GuildData, channelData: Types.ChannelData) {
 	if (channelData.vodData == null) return;
 
 	if (channelData.vodData.triesToGet > 0) {
@@ -290,7 +294,7 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 			msg ??= (await getDiscordMessageByID(guildData, channelData, channelData.vodData.discordMessageID)).msg;
 			if (msg != null) {
 				L.info(`Updating discord message for ended stream`, {user: channelData.userData.display_name, messageID: channelData.vodData.discordMessageID, url: vodEntry.url});
-				msg.edit(await getTwitchStreamEndEmbed(channelData, channelData.vodData.games, vodEntry.title, vodEntry.url, durationStreamToHumanReadable(vodEntry.duration), vodEntry.thumbnail_url));
+				msg.edit(await getTwitchStreamEndEmbed(channelData, guildData.pingRoleID, channelData.vodData.games, vodEntry.title, vodEntry.url, durationStreamToHumanReadable(vodEntry.duration), vodEntry.thumbnail_url));
 				(await (await getThread(msg)).messages.fetch({limit: 1})).first()?.edit(getDiscordMessagePrefix(':red_circle: Стрим окончен', durationStreamToDate(vodEntry.created_at, vodEntry.duration).toUTCString()));
 			}
 
@@ -304,7 +308,7 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 
 			msg ??= (await getDiscordMessageByID(guildData, channelData, channelData.vodData.discordMessageID)).msg;
 			if (msg != null) {
-				msg.edit(await getTwitchStreamEndEmbedFailedVOD(channelData, channelData.vodData.games, channelData.vodData.title, channelData.vodData.created_at != null ? decimalTimeToHumanReadable((new Date(Date.now()).getTime() - new Date(channelData.vodData.created_at).getTime()) / 1000) : null));
+				msg.edit(await getTwitchStreamEndEmbedFailedVOD(channelData, guildData.pingRoleID, channelData.vodData.games, channelData.vodData.title, channelData.vodData.created_at != null ? decimalTimeToHumanReadable((new Date(Date.now()).getTime() - new Date(channelData.vodData.created_at).getTime()) / 1000) : null));
 				(await (await getThread(msg)).messages.fetch({limit: 1})).first()?.edit(getDiscordMessagePrefix(':red_circle: Стрим окончен', channelData.vodData.ended_at));
 			}
 
@@ -314,27 +318,36 @@ export async function vodGetting_fetch(guildData: Twitch.GuildData, channelData:
 	}
 }
 
-export async function checkForStreamChange(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry, msg: Discord.Message, entryName: string, emoji: string, displayName: string, onChange?: ()=>void): Promise<boolean> {
-	const prevValue = Reflect.get(prevEntry, entryName);
+export async function checkForStreamChange(guildData: Types.GuildData, channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry | null, msg: Discord.Message, entryName: string, emoji: string, displayName: string, onChange?: ()=>void) {
 	const value = Reflect.get(entry, entryName);
-	if (value != prevValue) {
+	if (prevEntry == null) {
 		onChange?.();
 		await (await getThread(msg)).send(getDiscordMessagePrefix(`:${emoji}: ${displayName}: **${value}**`));
-		await msg.edit(getTwitchStreamStartEmbed(channelData, entry));
-
-		L.info(`Got changed entry!`, {user: entry.user_name, entryName, prevValue, newValue: value});
-		return true;
+		return;
 	}
-	return false;
+
+	const prevValue = Reflect.get(prevEntry, entryName);
+	if (prevValue != null && value != null) {
+		if (value != prevValue) {
+			onChange?.();
+			await (await getThread(msg)).send(getDiscordMessagePrefix(`:${emoji}: ${displayName}: **${value}**`));
+			await msg.edit(getTwitchStreamStartEmbed(channelData, entry, guildData.pingRoleID));
+
+			L.info(`Got changed entry!`, {user: entry.user_name, entryName, prevValue, newValue: value});
+		}
+	} else {
+		let why = []; if (prevValue == null) why.push('prevValue'); if (value == null) why.push('value');
+		L.error('Can\'t compare previous value and new value!', {user: entry.user_name, entryName, prevValue, newValue: value}, why.join(' / ') + ' is null');
+	}
 }
 
-export async function checkForStreamChanges(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry, discordMessageID: string) {
+export async function checkForStreamChanges(guildData: Types.GuildData, channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry | null, discordMessageID: string) {
 	const v = await getDiscordMessageByID(guildData, channelData, discordMessageID);
 	if (v.ch == null || v.msg == null) return;
 
-	await checkForStreamChange(channelData, entry, prevEntry, v.msg, 'viewer_count', 'bust_in_silhouette', 'Зрителей');
-	await checkForStreamChange(channelData, entry, prevEntry, v.msg, 'game_name', 'video_game', 'Текущая игра', () => channelData.games.push(entry.game_name));
-	await checkForStreamChange(channelData, entry, prevEntry, v.msg, 'title', 'speech_left', 'Название стрима');
+	await checkForStreamChange(guildData, channelData, entry, prevEntry, v.msg, 'title', 'speech_left', 'Название стрима');
+	await checkForStreamChange(guildData, channelData, entry, prevEntry, v.msg, 'game_name', 'video_game', 'Текущая игра', () => channelData.games.push(entry.game_name));
+	await checkForStreamChange(guildData, channelData, entry, prevEntry, v.msg, 'viewer_count', 'bust_in_silhouette', 'Зрителей');
 }
 
 export function translateToRU_gameName(game_name: string): string {
@@ -371,11 +384,11 @@ export function decimalTimeToHumanReadable(decimal: number): string {
 	return (h.length < 2 ? "0" + h : h) + ":" + (m.length < 2 ? "0" + m : m) + ":" + (s.length < 2 ? "0" + s : s);
 }
 
-export function getVODSavingTime(broadcaster_type: Twitch.TwitchBroadcasterType): number {
+export function getVODSavingTime(broadcaster_type: Twitch.BroadcasterType): number {
 	switch(broadcaster_type) {
-		case Twitch.TwitchBroadcasterType.PARTNER:   return 5184000000; // 60 days in ms
-		case Twitch.TwitchBroadcasterType.AFFILIATE: return 1209600000; // 14 days in ms
-		case Twitch.TwitchBroadcasterType.NORMAL:    return 604800000; // 7 days in ms
+		case Twitch.BroadcasterType.PARTNER:   return 5184000000; // 60 days in ms
+		case Twitch.BroadcasterType.AFFILIATE: return 1209600000; // 14 days in ms
+		case Twitch.BroadcasterType.NORMAL:    return 604800000; // 7 days in ms
 	}
 }
 
@@ -395,8 +408,8 @@ export function gamesToHumanReadable(arr: string[], lastToBeChoosed: boolean = t
 	return str;
 }
 
-export function getTwitchStreamStartEmbed(channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry) {
-	return {content: "<@&773607854803255309>", embeds: [new Discord.EmbedBuilder()
+export function getTwitchStreamStartEmbed(channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry, pingRoleID: string | null) {
+	return {content: pingRoleID != null ? `<@&${pingRoleID}>`: "", embeds: [new Discord.EmbedBuilder()
 	.setAuthor({
 		name: `${entry.user_name} в эфире на Twitch!`,
 		url: `https://www.twitch.tv/${entry.user_login}`,
@@ -427,13 +440,13 @@ export function getTwitchStreamStartEmbed(channelData: Twitch.ChannelData, entry
 	.setColor([100, 64, 165])]};
 }
 
-export function getTwitchStreamEndEmbed(channelData: Twitch.ChannelData, games: string[], title: string | null, url: string | null, created_at: string | null, thumbnail_url: string | null) {
+export function getTwitchStreamEndEmbed(channelData: Types.ChannelData, pingRoleID: string | null, games: string[], title: string | null, url: string | null, created_at: string | null, thumbnail_url: string | null) {
 	url ??= ("https://twitch.tv/" + channelData.userData.login);
 	thumbnail_url ??= channelData.userData.offline_image_url;
 	const displayURL = url ?? ("https://twitch.tv/" + channelData.userData.login + "\n:hourglass_flowing_sand: *Получаю ссылку на запись...* :hourglass_flowing_sand:\n");
 	title ??= ':hourglass_flowing_sand: Получаю запись стрима... :hourglass_flowing_sand:';
 
-	return {content: "<@&773607854803255309>", embeds: [new Discord.EmbedBuilder()
+	return {content: pingRoleID != null ? `<@&${pingRoleID}>`: "", embeds: [new Discord.EmbedBuilder()
 	.setAuthor({
 		name: `Запись стрима на Twitch от ${channelData.userData.display_name}`,
 		url: url,
@@ -464,12 +477,12 @@ export function getTwitchStreamEndEmbed(channelData: Twitch.ChannelData, games: 
 	.setColor([100, 64, 165])]};
 }
 
-export function getTwitchStreamEndEmbedFailedVOD(channelData: Twitch.ChannelData, games: string[], title: string | null, created_at: string | null) {
+export function getTwitchStreamEndEmbedFailedVOD(channelData: Types.ChannelData, pingRoleID: string | null, games: string[], title: string | null, created_at: string | null) {
 	const url = "https://twitch.tv/" + channelData.userData.login;
 	const thumbnail_url = channelData.userData.offline_image_url;
 	const displayURL = "https://twitch.tv/" + channelData.userData.login + "\n:warning: *запись не была найдена* :warning:\n";
 
-	return {content: "<@&773607854803255309>", embeds: [new Discord.EmbedBuilder()
+	return {content: pingRoleID != null ? `<@&${pingRoleID}>`: "", embeds: [new Discord.EmbedBuilder()
 	.setAuthor({
 		name: `Запись стрима на Twitch от ${channelData.userData.display_name}`,
 		url: url,
@@ -500,31 +513,81 @@ export function getTwitchStreamEndEmbedFailedVOD(channelData: Twitch.ChannelData
 	.setColor([100, 64, 165])]};
 }
 
-/*export function getTwitchStreamStartMessage(data: any) {
-  return `<@&773607854803255309>\n# ${data.user_name} в эфире на Twitch!\n### ${data.title}\nИгра: **${translateToRU_gameName(data.game_name)}**\nЗрителей: **${data.viewer_count}**\n\n<https://www.twitch.tv/${data.user_login}>\n## Желаем вам хорошего просмотра[!](${data.thumbnail_url.replace('{width}', '1280').replace('{height}', '720')})`;
-}
-export function getTwitchStreamEndMessage(data: any) {
-  return `<@&773607854803255309>\n# Запись стрима на Twitch от ${data.user_name}\n### ${data.title}\nИгра: **${translateToRU_gameName(data.game_name)}**\nДлительность: **${data.vod_duration}**\nЗапись будет удалена <t:${Math.floor(new Date(new Date().getTime() + 1209600000).getTime() / 1000)}:R>\n\n<https://www.twitch.tv/videos/${data.vod_id}>\n## Желаем вам хорошего просмотра[!](${data.vod_thumbnail_url.replace('%{width}', '1280').replace('%{height}', '720')})`;
-}*/
-
 export async function getThread(msg: Discord.Message) {
 	if (msg.thread != null) return msg.thread;
 	return await msg.startThread({name: 'Логи'});
 }
 
-export async function createDiscordNotificationChannel(guildID: string, channelData: Twitch.ChannelData): Promise<Discord.NewsChannel | null> {
-	const guildData = guildsData.get(guildID);
+export async function validateGuildData(guildID: string, guildData?: Types.GuildData | null): Promise<Types.GuildData> {
+	if (guildData != null) {
+		var fixedEntries = [];
+		if (guildData.discordCategoryID !== null && !(typeof guildData.discordCategoryID == 'string')) {
+			guildData.discordCategoryID = null;
+			fixedEntries.push('discordCategoryID');
+		}
+		if (guildData.pingRoleID !== null && !(typeof guildData.pingRoleID == 'string')) {
+			guildData.pingRoleID = null;
+			fixedEntries.push('pingRoleID');
+		}
+		if (!(guildData.channels instanceof Map)) {
+			guildData.channels = new Map();
+			fixedEntries.push('channels');
+		}
+
+		if (fixedEntries.length > 0) {
+			L.info(`Fixed some entries of guildData`, {guildID, fixedEntries: fixedEntries.join(', ')});
+			saveData();
+		}
+	} else {
+		guildData = {
+			discordCategoryID: null,
+			pingRoleID: null,
+			channels: new Map()
+		};
+		await createDiscordCategoryChannel(guildID, guildData);
+		guildsData.set(guildID, guildData);
+		L.info(`Added new guildData`, {guildID});
+		saveData();
+	}
+
+	return guildData;
+}
+
+export async function createDiscordNewsChannel(guildID: string, guildData: Types.GuildData, channelData: Types.ChannelData): Promise<Discord.NewsChannel | null> {
+	if (guildData.discordCategoryID == null) {
+		L.error('Tried to create Discord.NewsChannel', {guildID, user: channelData.userData.display_name}, 'discordCategoryID is null');
+		return null;
+	}
+
 	const guild = client.guilds.cache.get(guildID);
-	if (guildData == null || guild == null) return null;
+	if (guild == null) {
+		L.error('Tried to get Discord.Guild', {guildID}, 'Maybe guild is not exists?');
+		return null;
+	}
 
 	const ch = await guild.channels.create({
 		name: '『⚫』' + channelData.userData.login,
 		type: Discord.ChannelType.GuildAnnouncement,
 		parent: guildData.discordCategoryID,
-	}).then(channel => channel.setTopic(`Оповещения о стримах Twitch-канала ${channelData.userData.display_name}. Каждое сообщение обновляется самописным ботом! Если в названии канала кружок красный, это значит канал сейчас в эфире!`));
+	}).then(channel => channel.setTopic(`Каждое сообщение обновляется самописным ботом! Если в названии канала кружок красный, это значит канал сейчас в эфире!`));
 	channelData.discordChannelID = ch.id;
 	saveData();
-	L.info(`Created notifications channel`, {user: channelData.userData.display_name});
+	L.info(`Created discord news channel`, {user: channelData.userData.display_name});
 
 	return ch;
+}
+
+export async function createDiscordCategoryChannel(guildID: string, guildData: Types.GuildData) {
+	const guild = client.guilds.cache.get(guildID);
+	if (guild == null)
+		return L.error('Tried to get Discord.Guild', {guildID}, 'Maybe guild is not exists?');
+
+	if (guildData.discordCategoryID == null || guild.channels.cache.get(guildData.discordCategoryID) == null) {
+		L.info('Creating new discord category channel', {guildName: guild.name});
+		guildData.discordCategoryID = (await guild.channels.create({
+			name: 'Оповещения о Стримах',
+			type: Discord.ChannelType.GuildCategory
+		})).id;
+		saveData();
+	}
 }

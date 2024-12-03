@@ -1,14 +1,15 @@
 import { configINI, client } from '../../../src/index';
 import * as L from '../../../src/logger';
-import * as Twitch from './types';
+import * as Twitch from './twitch-types';
+import * as Types from './types';
 import * as Helper from './helper-functions';
 
 import * as Discord from 'discord.js';
 import { fetch, setGlobalDispatcher, Agent } from 'undici';
 
 export const moduleName = "twitch-notifications";
-export const guildsData: Map<string, Twitch.GuildData>  = new Map();
-export const moduleData: Twitch.ModuleData = {
+export const guildsData: Map<string, Types.GuildData>  = new Map();
+export const moduleData: Types.ModuleData = {
 	twitchAccessToken: null
 };
 export var clientID: string = "";
@@ -36,32 +37,12 @@ export function main() {
 	setGlobalDispatcher(new Agent({ connect: { timeout: 60_000 } }) );
 
 	client.on("guildCreate", guildCreate);
-	client.on("guildDelete", guildDelete);
 	client.on("messageCreate", messageCreate);
 	client.on("ready", ready);
 }
 
 async function guildCreate(guild: Discord.Guild) {
-	const prevGuildData = guildsData.get(guild.id);
-	var cat = prevGuildData != null ? guild.channels.cache.get(prevGuildData.discordCategoryID) : null;
-	if (cat == null) {
-		cat = await guild.channels.create({
-			name: 'оповещения о стримах',
-			type: Discord.ChannelType.GuildCategory
-		});
-		L.info('Creating new discord category', {guildName: guild.name});
-	}
-
-	guildsData.set(guild.id, {
-		discordCategoryID: prevGuildData?.discordCategoryID ?? cat.id,
-		channels: prevGuildData?.channels ?? new Map()
-	});
-	Helper.saveData();
-}
-
-async function guildDelete(guild: Discord.Guild) {
-	guildsData.delete(guild.id);
-	Helper.saveData();
+	Helper.validateGuildData(guild.id);
 }
 
 async function messageCreate(message: Discord.Message) {
@@ -77,13 +58,10 @@ async function messageCreate(message: Discord.Message) {
 		L.error('where the fuck server config? im creating it rn', {
 			server: message.guild.name
 		});
-		await guildCreate(message.guild);
-		guildData = guildsData.get(message.guild.id);
+		guildData = await Helper.validateGuildData(message.guild.id);
 	}
-	if (guildData == null) {
-		L.error('fuck. i cant.');
-		return;
-	}
+	if (guildData == null)
+		return L.error('fuck. i cant.');
 
 	if (!(message.author.id != client.user?.id)) return;
 
@@ -95,9 +73,13 @@ async function messageCreate(message: Discord.Message) {
 			L.info(`Got twitch command`, {content});
 			if (content.startsWith('добавь канал ')) {
 				content = content.substring('добавь канал '.length, content.length);
+
+				if (guildData.discordCategoryID == null)
+					await Helper.createDiscordCategoryChannel(message.guild.id, guildData);
+
 				const value = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
 
-				const v: Twitch.UpdateUserData = Helper.isNumber(value) ? await Helper.updateUserDataByID(guildData, value) : await Helper.updateUserDataByLogin(guildData, value);
+				const v: Types.UpdateUserData = Helper.isNumber(value) ? await Helper.updateUserDataByID(guildData, value) : await Helper.updateUserDataByLogin(guildData, value);
 
 				if (v.userData == null) {
 					await message.reply('Канал не существует такой.');
@@ -109,7 +91,7 @@ async function messageCreate(message: Discord.Message) {
 					return;
 				}
 
-				const channelData: Twitch.ChannelData = {
+				const channelData: Types.ChannelData = {
 					live: false,
 					prevLive: false,
 					discordChannelID: 'blank',
@@ -120,7 +102,7 @@ async function messageCreate(message: Discord.Message) {
 					vodData: null
 				};
 
-				const ch = await Helper.createDiscordNotificationChannel(message.guild.id, channelData);
+				const ch = await Helper.createDiscordNewsChannel(message.guild.id, guildData, channelData);
 				if (ch == null) {
 					await message.reply('Не смог создать канал я.');
 					return;
@@ -134,7 +116,7 @@ async function messageCreate(message: Discord.Message) {
 				content = content.substring('удали канал '.length, content.length);
 				const value = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
 
-				const v: Twitch.UpdateUserData = Helper.isNumber(value) ? await Helper.updateUserDataByID(guildData, value) : await Helper.updateUserDataByLogin(guildData, value);
+				const v: Types.UpdateUserData = Helper.isNumber(value) ? await Helper.updateUserDataByID(guildData, value) : await Helper.updateUserDataByLogin(guildData, value);
 				if (v.userData == null) {
 					await message.reply('Канал не существует такой.');
 					return;
@@ -189,7 +171,7 @@ async function messageCreate(message: Discord.Message) {
 				var value = content.substring(paramName.length + ' канала '.length, content.length);
 				value = value.substring(0, value.includes(' ') ? value.indexOf(' ') : value.length);
 
-				const v: Twitch.UpdateUserData = Helper.isNumber(value) ? await Helper.updateUserDataByID(guildData, value) : await Helper.updateUserDataByLogin(guildData, value);
+				const v: Types.UpdateUserData = Helper.isNumber(value) ? await Helper.updateUserDataByID(guildData, value) : await Helper.updateUserDataByLogin(guildData, value);
 				if (v.userData == null) {
 					await message.reply('Канал не существует такой.');
 					return;
@@ -233,7 +215,7 @@ async function messageCreate(message: Discord.Message) {
 				content = content.substring('отправь конфиг канала '.length, content.length);
 				var value = content.substring(0, content.includes(' ') ? content.indexOf(' ') : content.length);
 
-				var v: Twitch.UpdateUserData = Helper.isNumber(value) ? await Helper.updateUserDataByID(guildData, value) : await Helper.updateUserDataByLogin(guildData, value);
+				var v: Types.UpdateUserData = Helper.isNumber(value) ? await Helper.updateUserDataByID(guildData, value) : await Helper.updateUserDataByLogin(guildData, value);
 
 				if (v.userData == null) {
 					await message.reply('Канал не существует такой.');
@@ -286,7 +268,7 @@ async function messageCreate(message: Discord.Message) {
 }
 
 async function ready() {
-	Helper.getData();
+	await Helper.getData();
 
 	clientID = configINI.get(moduleName, 'twitchClientID');
 	clientSecret = configINI.get(moduleName, 'twitchClientSecret');
@@ -301,7 +283,7 @@ async function ready() {
 
 		twitchFetch();
 	} else
-		L.error('clientID or clientSecret is not specified');
+		L.error('clientID or clientSecret is not specified (both required)');
 }
 
 export function updateFetchChannelsID() {
@@ -319,16 +301,19 @@ export function updateFetchChannelsID() {
 	for (let id of arr)
 		fetchChannelsID += `user_id=${id}&`;
 
-	L.info(`Listening Twitch channels`, {url: Helper.helixStreamsURL + fetchChannelsID, "Client-ID": headers['Client-ID'], Authorization: headers.Authorization});
+	if (fetchChannelsID.length > 0)
+		L.info(`Listening Twitch channels`, {url: Helper.helixStreamsURL + fetchChannelsID, "Client-ID": headers['Client-ID'], Authorization: headers.Authorization});
+	else
+		L.error(`Twitch channels will not be listened`, null, '0 channels to listen');
 }
 
-const helixData: Twitch.HelixStreamsData = new Twitch.HelixStreamsData();
+const helixData: Types.HelixStreamsData = new Types.HelixStreamsData();
 async function twitchFetch() {
 	await Helper.getHelixStreamsResponse(helixData, fetchChannelsID);
 	if (!helixData.wasError) {
 		for (let guildData of guildsData.values()) for (let [channelID, channelData] of guildData.channels) {
 			const entry = helixData.get(channelID)!;
-			const prevEntry = helixData.previous?.get(channelID)!;
+			const prevEntry = helixData.previous?.get(channelID) ?? null;
 
 			channelData.prevLive = channelData.live;
 			channelData.live = entry != null;
@@ -341,11 +326,11 @@ async function twitchFetch() {
 					if (channelData.live) {
 						L.info('Updating discord message for started stream', {user: entry.user_name, messageID: channelData.discordMessageID});
 						await Helper.updateUserDataByID(guildData, channelID);
-						await v.msg.edit(Helper.getTwitchStreamStartEmbed(channelData, entry));
+						await v.msg.edit(Helper.getTwitchStreamStartEmbed(channelData, entry, guildData.pingRoleID));
 					} else {
 						L.info('Updating discord message for ended stream', {user: channelData.userData.display_name, messageID: channelData.discordMessageID});
 
-						await v.msg.edit(Helper.getTwitchStreamEndEmbed(channelData, channelData.games, null, null, null, null));
+						await v.msg.edit(Helper.getTwitchStreamEndEmbed(channelData, guildData.pingRoleID, channelData.games, null, null, null, null));
 						await v.ch.setName('『⚫』' + channelData.userData.login);
 						await (await Helper.getThread(v.msg)).send(Helper.getDiscordMessagePrefix(':red_circle: Стрим окончен'));
 
@@ -364,10 +349,10 @@ async function twitchFetch() {
 
 			if (!channelData.prevLive && channelData.live)
 				await callbackTwitchStreamStart(guildData, channelData, entry);
-			if (channelData.prevLive && !channelData.live)
+			if (prevEntry != null && channelData.prevLive && !channelData.live)
 				await callbackTwitchStreamEnd(guildData, channelData, prevEntry);
 
-			if (channelData.live && prevEntry != null && channelData.discordMessageID != null)
+			if (channelData.live && channelData.discordMessageID != null)
 				Helper.checkForStreamChanges(guildData, channelData, entry, prevEntry, channelData.discordMessageID);
 		}
 	}
@@ -375,33 +360,32 @@ async function twitchFetch() {
 	setTimeout(twitchFetch, 5000);
 }
 
-async function callbackTwitchStreamStart(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry) {
+async function callbackTwitchStreamStart(guildData: Types.GuildData, channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry) {
 	await Helper.updateUserDataByID(guildData, channelData.userData.id);
 
 	const ch = (await Helper.getDiscordMessageByID(guildData, channelData, null)).ch;
-	if (ch == null) return;
+	if (ch == null)
+		return L.error(`Tried to get Discord.TextChannel`, {user: channelData.userData.display_name}, `Channel is not exists, maybe it was deleted?`);
+
 	ch.setName('『🔴』' + entry.user_login);
 
-	channelData.games.push(entry.game_name);
-	Helper.saveData();
-
-	const msg = await ch.send(Helper.getTwitchStreamStartEmbed(channelData, entry));
-	const thr = await Helper.getThread(msg);
-	await thr.send(Helper.getDiscordMessagePrefix(':green_circle: Стрим запущен', entry.started_at));
-	await thr.send(Helper.getDiscordMessagePrefix(`:video_game: Текущая игра: **${entry.game_name}**`, entry.started_at));
-
+	const msg = await ch.send(Helper.getTwitchStreamStartEmbed(channelData, entry, guildData.pingRoleID));
 	channelData.discordMessageID = msg.id;
 	Helper.saveData();
 
 	L.info(`Stream started`, {user: entry.user_name});
 }
 
-async function callbackTwitchStreamEnd(guildData: Twitch.GuildData, channelData: Twitch.ChannelData, entry: Twitch.HelixStreamsResponseEntry) {
+async function callbackTwitchStreamEnd(guildData: Types.GuildData, channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry) {
 	const v = await Helper.getDiscordMessageByID(guildData, channelData, channelData.discordMessageID);
-	if (v.ch == null || v.msg == null) return;
+	if (v.ch == null)
+		return L.error(`Tried to get Discord.TextChannel`, {user: channelData.userData.display_name}, `Channel is not exists, maybe it was deleted?`);
+	if (v.msg == null)
+		return L.error(`Tried to get Discord.Message`, {user: channelData.userData.display_name}, `Message is not exists, maybe it was deleted?`);
+
 	v.ch.setName('『⚫』' + entry.user_login);
 
-	await v.msg.edit(Helper.getTwitchStreamEndEmbed(channelData, channelData.games, entry.title, null, Helper.decimalTimeToHumanReadable((new Date(Date.now()).getTime() - new Date(entry.started_at).getTime()) / 1000), null));
+	await v.msg.edit(Helper.getTwitchStreamEndEmbed(channelData, guildData.pingRoleID, channelData.games, entry.title, null, Helper.decimalTimeToHumanReadable((new Date(Date.now()).getTime() - new Date(entry.started_at).getTime()) / 1000), null));
 	await (await Helper.getThread(v.msg)).send(Helper.getDiscordMessagePrefix(':red_circle: Стрим окончен'));
 
 	Helper.vodGetting_start(channelData, entry, 360);
