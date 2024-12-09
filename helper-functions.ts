@@ -1,5 +1,5 @@
-import { client, getModuleGuildsData, getModuleData, saveModuleData } from './../../../src/index';
-import * as L from './../../../src/logger';
+import { client, getModuleGuildsData, getModuleData, saveModuleData } from './../../core/index';
+import * as L from './../../core/logger';
 import * as Twitch from './twitch-types';
 import * as Types from './types';
 import { updateFetchChannelsID, getTwitchResponseJson, moduleName, guildsData, moduleData, clientID, clientSecret } from './index';
@@ -20,14 +20,12 @@ export function saveData() {
 }
 
 export async function getData() {
-	for (let [guildID, guildData] of Object.entries<any>(getModuleGuildsData(moduleName))) {
-		const newGuildData: Types.GuildData = {
+	for (let [guildID, guildData] of Object.entries<any>(getModuleGuildsData(moduleName)))
+		guildsData.set(guildID, await validateGuildData(guildID, {
 			discordCategoryID: guildData.discordCategoryID,
 			pingRoleID: guildData.pingRoleID,
 			channels: new Map(Object.entries(guildData.channels))
-		};
-		guildsData.set(guildID, await validateGuildData(guildID, newGuildData));
-	}
+		}));
 
 	for (let [id, val] of Object.entries<any>(getModuleData(moduleName))) if (Reflect.has(moduleData, id))
 		Reflect.set(moduleData, id, val);
@@ -131,8 +129,10 @@ export async function updateUserDataByLogin(guildData: Types.GuildData, login: s
 	};
 	if (r.userData != null) {
 		r.channelData = guildData.channels.get(r.userData.id) ?? null;
-		if (r.channelData != null) r.channelData.userData = r.userData;
-		L.info('Updated user data', {user: r.userData.display_name});
+		if (r.channelData != null) {
+			r.channelData.userData = r.userData;
+			L.info('Updated user data', {user: r.userData.display_name});
+		}
 	}
 	return r;
 }
@@ -149,8 +149,10 @@ export async function updateUserDataByID(guildData: Types.GuildData, id: string)
 	};
 	if (r.userData != null) {
 		r.channelData = guildData.channels.get(r.userData.id) ?? null;
-		if (r.channelData != null) r.channelData.userData = r.userData;
-		L.info('Updated user data', {user: r.userData.display_name});
+		if (r.channelData != null) {
+			r.channelData.userData = r.userData;
+			L.info('Updated user data', {user: r.userData.display_name});
+		}
 	}
 	return r;
 }
@@ -318,14 +320,8 @@ export async function vodGetting_fetch(guildData: Types.GuildData, channelData: 
 	}
 }
 
-export async function checkForStreamChange(guildData: Types.GuildData, channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry | null, msg: Discord.Message, entryName: string, emoji: string, displayName: string, onChange?: ()=>void) {
+export async function checkForStreamChange(guildData: Types.GuildData, channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry, msg: Discord.Message, entryName: string, emoji: string, displayName: string, onChange?: ()=>void) {
 	const value = Reflect.get(entry, entryName);
-	if (prevEntry == null) {
-		onChange?.();
-		await (await getThread(msg)).send(getDiscordMessagePrefix(`:${emoji}: ${displayName}: **${value}**`));
-		return;
-	}
-
 	const prevValue = Reflect.get(prevEntry, entryName);
 	if (prevValue != null && value != null) {
 		if (value != prevValue) {
@@ -341,7 +337,7 @@ export async function checkForStreamChange(guildData: Types.GuildData, channelDa
 	}
 }
 
-export async function checkForStreamChanges(guildData: Types.GuildData, channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry | null, discordMessageID: string) {
+export async function checkForStreamChanges(guildData: Types.GuildData, channelData: Types.ChannelData, entry: Twitch.HelixStreamsResponseEntry, prevEntry: Twitch.HelixStreamsResponseEntry, discordMessageID: string) {
 	const v = await getDiscordMessageByID(guildData, channelData, discordMessageID);
 	if (v.ch == null || v.msg == null) return;
 
@@ -420,19 +416,18 @@ export function getTwitchStreamStartEmbed(channelData: Types.ChannelData, entry:
 	.setDescription(`${channelData.userData.description}\n\nhttps://www.twitch.tv/${entry.user_login}\n\n**Желаем вам приятного просмотра!**\n`)
 	.addFields(
 		{
-		name: "Игры",
-		value: gamesToHumanReadable(channelData.games),
-		inline: false
+			name: "Игры",
+			value: gamesToHumanReadable(channelData.games)
 		},
 		{
-		name: "Стрим был начат",
-		value: '<t:' + (new Date(entry.started_at).getTime() / 1000) + ':R>',
-		inline: true
+			name: "Стрим был начат",
+			value: '<t:' + (new Date(entry.started_at).getTime() / 1000) + ':R>',
+			inline: true
 		},
 		{
-		name: "Зрителей",
-		value: `${entry.viewer_count}`,
-		inline: true
+			name: "Зрителей",
+			value: `${entry.viewer_count}`,
+			inline: true
 		}
 	)
 	.setImage(entry.thumbnail_url.replace('{width}', '1280').replace('{height}', '720') + '?v=' + Math.floor(Math.random() * 10**10))
