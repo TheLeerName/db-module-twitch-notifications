@@ -1,4 +1,5 @@
 import { addSubcommands } from './../../../core/slash-commands';
+import { moduleName } from './../index';
 
 import { send } from './subcommands/send';
 import { set } from './subcommands/set';
@@ -9,14 +10,14 @@ import { channelSet } from './subcommands/channel-set';
 import { secretSend } from './subcommands/secret-send';
 import { secretSet } from './subcommands/secret-set';
 
-import * as Discord from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 
-const twitchCommand = addSubcommands(new Discord.SlashCommandBuilder()
+const command = addSubcommands(new SlashCommandBuilder()
 .setName('twitch')
-.setDescription('Contains all commands of Twitch channel notifications module')
-.setDescriptionLocalization('ru', 'Содержит все команды модуля уведомлений Twitch-каналов'),
+.setDescription(`Contains all commands of "${moduleName}" module`)
+.setDescriptionLocalization('ru', `Содержит все команды модуля "${moduleName}"`),
 send, set, channelAdd, channelRemove, channelSend, channelSet, secretSend, secretSet);
 
-export function main(): Discord.SlashCommandBuilder[] {
-	return [twitchCommand];
+export function main(): SlashCommandBuilder[] {
+	return [command];
 }

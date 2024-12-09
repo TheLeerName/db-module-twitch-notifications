@@ -2,14 +2,13 @@ import { configINI } from '../../../../core/index';
 import { setCallback, humanizeDuration } from './../../../../core/slash-commands';
 
 import { moduleName, moduleData } from './../../index';
-import * as Types from './../../types';
-import * as Helper from './../../helper-functions';
+import { saveData } from '../../helper-functions';
 
-import * as Discord from 'discord.js';
+import { SlashCommandSubcommandBuilder, EmbedBuilder } from 'discord.js';
 
 var botCreatorDiscordID : string | null;
 
-export const secretSet = setCallback(new Discord.SlashCommandSubcommandBuilder()
+export const secretSet = setCallback(new SlashCommandSubcommandBuilder()
 .setName('secret-set')
 .setDescription('Changes "twitch-notifications" module parameter. Works for bot creator only!')
 .setDescriptionLocalization('ru', 'Изменяет параметр модуля "twitch-notifications". Работает только для создателя бота!')
@@ -34,34 +33,15 @@ export const secretSet = setCallback(new Discord.SlashCommandSubcommandBuilder()
 async(interaction) => {
 	if (interaction.guild == null || !interaction.isChatInputCommand()) return;
 
-	await interaction.reply({embeds: [new Discord.EmbedBuilder()
+	await interaction.reply({embeds: [new EmbedBuilder()
 		.setTitle(`:hourglass_flowing_sand: Изменяю...`)
 		.setColor("#ffe8b6")
 	], ephemeral: true});
 
-	botCreatorDiscordID ??= configINI.get(moduleName, 'botCreatorDiscordID');
-	if (botCreatorDiscordID != null && botCreatorDiscordID != interaction.user.id) {
-		await interaction.editReply({embeds: [new Discord.EmbedBuilder()
-			.setTitle(`:x: Доступ запрещён. Вы не создатель бота!`)
-			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		]});
-		return;
-	}
-
 	var parameter = interaction.options.getString('parameter');
 	if (parameter == null) {
-		await interaction.editReply({embeds: [new Discord.EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Параметр \`parameter\` не указан!`)
-			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		]});
-		return;
-	}
-
-	if (!Reflect.has(moduleData, parameter)) {
-		await interaction.editReply({embeds: [new Discord.EmbedBuilder()
-			.setTitle(`:x: Модуль "twitch-notifications" не имеет параметра \`${parameter}\`!`)
 			.setColor("#dd2e44")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
@@ -70,7 +50,7 @@ async(interaction) => {
 
 	var value = interaction.options.getString('value');
 	if (value == null) {
-		await interaction.editReply({embeds: [new Discord.EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Параметр \`value\` не указан!`)
 			.setColor("#dd2e44")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -79,10 +59,30 @@ async(interaction) => {
 	}
 
 	try	{
+		botCreatorDiscordID ??= configINI.get(moduleName, 'botCreatorDiscordID');
+		if (botCreatorDiscordID != null && botCreatorDiscordID != interaction.user.id) {
+			await interaction.editReply({embeds: [new EmbedBuilder()
+				.setTitle(`:x: Доступ запрещён. Вы не создатель бота!`)
+				.setColor("#dd2e44")
+				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			]});
+			return;
+		}
+
+		if (!Reflect.has(moduleData, parameter)) {
+			await interaction.editReply({embeds: [new EmbedBuilder()
+				.setTitle(`:x: Модуль "twitch-notifications" не имеет параметра \`${parameter}\`!`)
+				.setColor("#dd2e44")
+				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			]});
+			return;
+		}
+
 		const prevValue = Reflect.get(moduleData, parameter);
 		Reflect.set(moduleData, parameter, value);
+		saveData();
 
-		await interaction.editReply({embeds: [new Discord.EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:notepad_spiral: Параметр \`${parameter}\` был успешно изменён!`)
 			.setFields(
 				{
@@ -98,8 +98,8 @@ async(interaction) => {
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
 	} catch(e) {
-		await interaction.editReply({embeds: [new Discord.EmbedBuilder()
-			.setTitle(`:x: Произошла ошибка при изменении параметра \`${parameter}\`!`)
+		await interaction.editReply({embeds: [new EmbedBuilder()
+			.setTitle(`:x: Произошла ошибка при изменении параметра!`)
 			.setDescription(`\`\`\`\n${e}\n\`\`\``)
 			.setColor("#dd2e44")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
