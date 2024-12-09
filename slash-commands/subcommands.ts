@@ -1,4 +1,4 @@
-import { addSubcommands } from './../../../core/slash-commands';
+import { SlashCommand } from './../../../core/slash-commands';
 import { moduleName } from './../index';
 
 import { send } from './subcommands/send';
@@ -12,11 +12,11 @@ import { secretSet } from './subcommands/secret-set';
 
 import { SlashCommandBuilder } from 'discord.js';
 
-const command = addSubcommands(new SlashCommandBuilder()
+const command = new SlashCommand()
 .setName('twitch')
 .setDescription(`Contains all commands of "${moduleName}" module`)
-.setDescriptionLocalization('ru', `Содержит все команды модуля "${moduleName}"`),
-send, set, channelAdd, channelRemove, channelSend, channelSet, secretSend, secretSet);
+.setDescriptionLocalization('ru', `Содержит все команды модуля "${moduleName}"`)
+.addSubcommands(send, set, channelAdd, channelRemove, channelSend, channelSet, secretSend, secretSet);
 
 export function main(): SlashCommandBuilder[] {
 	return [command];

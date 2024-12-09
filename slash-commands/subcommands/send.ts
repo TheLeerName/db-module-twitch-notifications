@@ -1,15 +1,15 @@
-import { setCallback, humanizeDuration } from '../../../../core/slash-commands';
+import { SlashSubcommand, humanizeDuration } from '../../../../core/slash-commands';
 
 import { guildsData } from '../../index';
 import { validateGuildData, guildDataToObj } from '../../helper-functions';
 
-import { SlashCommandSubcommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
-export const send = setCallback(new SlashCommandSubcommandBuilder()
+export const send = new SlashSubcommand()
 .setName('send')
 .setDescription('Sends "twitch-notifications" module parameters of this server')
-.setDescriptionLocalization('ru', 'Отправляет параметры модуля "twitch-notifications" этого сервера'),
-async(interaction) => {
+.setDescriptionLocalization('ru', 'Отправляет параметры модуля "twitch-notifications" этого сервера')
+.setCallback(async(interaction) => {
 	if (!interaction.isChatInputCommand() || interaction.guild == null) return;
 
 	await interaction.reply({embeds: [new EmbedBuilder()

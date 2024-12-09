@@ -1,22 +1,15 @@
-import { setCallback, humanizeDuration } from '../../../../core/slash-commands';
+import { SlashSubcommand, humanizeDuration } from '../../../../core/slash-commands';
 
 import { guildsData } from '../../index';
 import { validateGuildData, isNumber, updateUserDataByID, updateUserDataByLogin, removeTwitchChannelInData } from '../../helper-functions';
 
-import { SlashCommandSubcommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
-export const channelRemove = setCallback(new SlashCommandSubcommandBuilder()
+export const channelRemove = new SlashSubcommand()
 .setName('channel-remove')
 .setDescription('Removes Twitch channel from "twitch-notifications" module')
 .setDescriptionLocalization('ru', 'Удаляет Twitch-канал из модуля "twitch-notifications"')
-.addStringOption(option => option
-	.setName('channel')
-	.setDescription('Twitch channel login (as in browser link, without capital letters) or Twitch channel ID')
-	.setDescriptionLocalization('ru', 'Логин Twitch-канала (такой же как в ссылке браузера, без заглавных букв) или ID Twitch-канала')
-	.setRequired(true)
-	.setAutocomplete(true)
-),
-async(interaction) => {
+.setCallback(async(interaction) => {
 	if (interaction.guild == null) return;
 
 	if (interaction.isAutocomplete()) {
@@ -87,3 +80,10 @@ async(interaction) => {
 		]});
 	}
 });
+channelRemove.addStringOption(option => option
+	.setName('channel')
+	.setDescription('Twitch channel login (as in browser link, without capital letters) or Twitch channel ID')
+	.setDescriptionLocalization('ru', 'Логин Twitch-канала (такой же как в ссылке браузера, без заглавных букв) или ID Twitch-канала')
+	.setRequired(true)
+	.setAutocomplete(true)
+);

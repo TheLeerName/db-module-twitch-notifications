@@ -1,23 +1,16 @@
-import { setCallback, humanizeDuration } from '../../../../core/slash-commands';
+import { SlashSubcommand, humanizeDuration } from '../../../../core/slash-commands';
 
 import { guildsData } from '../../index';
 import { ChannelData } from '../../types';
 import { getHelixSearchChannelsResponse, validateGuildData, createDiscordCategoryChannel, isNumber, updateUserDataByID, updateUserDataByLogin, createDiscordNewsChannel, addTwitchChannelInData } from '../../helper-functions';
 
-import { SlashCommandSubcommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
-export const channelAdd = setCallback(new SlashCommandSubcommandBuilder()
+export const channelAdd = new SlashSubcommand()
 .setName('channel-add')
 .setDescription('Adds Twitch channel to "twitch-notifications" module')
 .setDescriptionLocalization('ru', 'Добавляет Twitch-канал в модуль "twitch-notifications"')
-.addStringOption(option => option
-	.setName('channel')
-	.setDescription('Twitch channel login (as in browser link, without capital letters) or Twitch channel ID')
-	.setDescriptionLocalization('ru', 'Логин Twitch-канала (такой же как в ссылке браузера, без заглавных букв) или ID Twitch-канала')
-	.setRequired(true)
-	.setAutocomplete(true)
-),
-async(interaction) => {
+.setCallback(async(interaction) => {
 	if (interaction.guild == null) return;
 
 	if (interaction.isAutocomplete()) {
@@ -114,3 +107,10 @@ async(interaction) => {
 		]});
 	}
 });
+channelAdd.addStringOption(option => option
+	.setName('channel')
+	.setDescription('Twitch channel login (as in browser link, without capital letters) or Twitch channel ID')
+	.setDescriptionLocalization('ru', 'Логин Twitch-канала (такой же как в ссылке браузера, без заглавных букв) или ID Twitch-канала')
+	.setRequired(true)
+	.setAutocomplete(true)
+);

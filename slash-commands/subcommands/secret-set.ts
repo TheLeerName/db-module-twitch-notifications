@@ -1,36 +1,18 @@
 import { configINI } from '../../../../core/index';
-import { setCallback, humanizeDuration } from './../../../../core/slash-commands';
+import { SlashSubcommand, humanizeDuration } from './../../../../core/slash-commands';
 
 import { moduleName, moduleData } from './../../index';
 import { saveData } from '../../helper-functions';
 
-import { SlashCommandSubcommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
 var botCreatorDiscordID : string | null;
 
-export const secretSet = setCallback(new SlashCommandSubcommandBuilder()
+export const secretSet = new SlashSubcommand()
 .setName('secret-set')
 .setDescription('Changes "twitch-notifications" module parameter. Works for bot creator only!')
 .setDescriptionLocalization('ru', 'Изменяет параметр модуля "twitch-notifications". Работает только для создателя бота!')
-.addStringOption(option => option
-	.setName('parameter')
-	.setDescription('"twitch-notifications" module parameter')
-	.setDescriptionLocalization('ru', 'Параметр модуля "twitch-notifications"')
-	.setRequired(true)
-	.addChoices([
-		{name: "twitchAccessToken", value: "twitchAccessToken"}
-	])
-)
-.addStringOption(option => option
-	.setName('value')
-	.setDescription('New value. Can be `null`')
-	.setDescriptionLocalization('ru', 'Новое значение. Может быть установлен как `null`')
-	.setRequired(true)
-	.setChoices([
-		{name: 'null', value: 'null'}
-	])
-),
-async(interaction) => {
+.setCallback(async(interaction) => {
 	if (interaction.guild == null || !interaction.isChatInputCommand()) return;
 
 	await interaction.reply({embeds: [new EmbedBuilder()
@@ -106,3 +88,21 @@ async(interaction) => {
 		]});
 	}
 });
+secretSet.addStringOption(option => option
+	.setName('parameter')
+	.setDescription('"twitch-notifications" module parameter')
+	.setDescriptionLocalization('ru', 'Параметр модуля "twitch-notifications"')
+	.setRequired(true)
+	.addChoices([
+		{name: "twitchAccessToken", value: "twitchAccessToken"}
+	])
+)
+.addStringOption(option => option
+	.setName('value')
+	.setDescription('New value. Can be `null`')
+	.setDescriptionLocalization('ru', 'Новое значение. Может быть установлен как `null`')
+	.setRequired(true)
+	.setChoices([
+		{name: 'null', value: 'null'}
+	])
+);

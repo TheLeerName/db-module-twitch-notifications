@@ -1,17 +1,17 @@
 import { configINI } from '../../../../core/index';
-import { setCallback, humanizeDuration } from './../../../../core/slash-commands';
+import { SlashSubcommand, humanizeDuration } from './../../../../core/slash-commands';
 
 import { moduleName, moduleData } from './../../index';
 
-import { SlashCommandSubcommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
 var botCreatorDiscordID : string | null;
 
-export const secretSend = setCallback(new SlashCommandSubcommandBuilder()
+export const secretSend = new SlashSubcommand()
 .setName('secret-send')
 .setDescription('Sends "twitch-notifications" module parameters. Works for bot creator only!')
-.setDescriptionLocalization('ru', 'Отправляет параметры модуля "twitch-notifications". Работает только для создателя бота!'),
-async(interaction) => {
+.setDescriptionLocalization('ru', 'Отправляет параметры модуля "twitch-notifications". Работает только для создателя бота!')
+.setCallback(async(interaction) => {
 	if (interaction.guild == null || !interaction.isChatInputCommand()) return;
 
 	await interaction.reply({embeds: [new EmbedBuilder()

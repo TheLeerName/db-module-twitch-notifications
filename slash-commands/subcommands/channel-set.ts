@@ -1,41 +1,15 @@
-import { setCallback, humanizeDuration } from '../../../../core/slash-commands';
+import { SlashSubcommand, humanizeDuration } from '../../../../core/slash-commands';
 
 import { guildsData } from '../../index';
 import { validateGuildData, isNumber, updateUserDataByID, updateUserDataByLogin, saveData } from '../../helper-functions';
 
-import { SlashCommandSubcommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
-export const channelSet = setCallback(new SlashCommandSubcommandBuilder()
+export const channelSet = new SlashSubcommand()
 .setName('channel-set')
 .setDescription('Changes "twitch-notifications" module parameter of specific Twitch channel')
 .setDescriptionLocalization('ru', 'Изменяет параметр модуля "twitch-notifications" указанного Twitch-канала')
-.addStringOption(option => option
-	.setName('channel')
-	.setDescription('Twitch channel login (as in browser link, without capital letters) or Twitch channel ID')
-	.setDescriptionLocalization('ru', 'Логин Twitch-канала (такой же как в ссылке браузера, без заглавных букв) или ID Twitch-канала')
-	.setRequired(true)
-	.setAutocomplete(true)
-)
-.addStringOption(option => option
-	.setName('parameter')
-	.setDescription('"twitch-notifications" module parameter of specific Twitch channel')
-	.setDescriptionLocalization('ru', 'Параметр модуля "twitch-notifications" указанного Twitch-канала')
-	.setRequired(true)
-	.addChoices([
-		{name: "discordCategoryID", value: "discordCategoryID"},
-		{name: "pingRoleID", value: "pingRoleID"}
-	])
-)
-.addStringOption(option => option
-	.setName('value')
-	.setDescription('New value. Can be `null`')
-	.setDescriptionLocalization('ru', 'Новое значение. Может быть установлен как `null`')
-	.setRequired(true)
-	.setChoices([
-		{name: 'null', value: 'null'}
-	])
-),
-async(interaction) => {
+.setCallback(async(interaction) => {
 	if (interaction.guild == null) return;
 
 	if (interaction.isAutocomplete()) {
@@ -55,7 +29,7 @@ async(interaction) => {
 	await interaction.reply({embeds: [new EmbedBuilder()
 		.setTitle(`:hourglass_flowing_sand: Изменяю...`)
 		.setColor("#ffe8b6")
-	], ephemeral: true});
+	]});
 
 	var channel = interaction.options.getString('channel');
 	if (channel == null) {
@@ -157,3 +131,29 @@ async(interaction) => {
 		]});
 	}
 });
+channelSet.addStringOption(option => option
+	.setName('channel')
+	.setDescription('Twitch channel login (as in browser link, without capital letters) or Twitch channel ID')
+	.setDescriptionLocalization('ru', 'Логин Twitch-канала (такой же как в ссылке браузера, без заглавных букв) или ID Twitch-канала')
+	.setRequired(true)
+	.setAutocomplete(true)
+)
+.addStringOption(option => option
+	.setName('parameter')
+	.setDescription('"twitch-notifications" module parameter of specific Twitch channel')
+	.setDescriptionLocalization('ru', 'Параметр модуля "twitch-notifications" указанного Twitch-канала')
+	.setRequired(true)
+	.addChoices([
+		{name: "discordCategoryID", value: "discordCategoryID"},
+		{name: "pingRoleID", value: "pingRoleID"}
+	])
+)
+.addStringOption(option => option
+	.setName('value')
+	.setDescription('New value. Can be `null`')
+	.setDescriptionLocalization('ru', 'Новое значение. Может быть установлен как `null`')
+	.setRequired(true)
+	.setChoices([
+		{name: 'null', value: 'null'}
+	])
+);

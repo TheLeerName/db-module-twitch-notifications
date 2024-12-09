@@ -1,40 +1,21 @@
-import { setCallback, humanizeDuration } from './../../../../core/slash-commands';
+import { SlashSubcommand, humanizeDuration } from './../../../../core/slash-commands';
 
 import { moduleData, guildsData } from './../../index';
 import { validateGuildData, saveData } from '../../helper-functions';
 
-import { SlashCommandSubcommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
-export const set = setCallback(new SlashCommandSubcommandBuilder()
+export const set = new SlashSubcommand()
 .setName('set')
 .setDescription('Changes "twitch-notifications" module parameter of this server')
 .setDescriptionLocalization('ru', 'Изменяет параметр модуля "twitch-notifications" этого сервера')
-.addStringOption(option => option
-	.setName('parameter')
-	.setDescription('"twitch-notifications" module parameter of this server')
-	.setDescriptionLocalization('ru', 'Параметр модуля "twitch-notifications" этого сервера')
-	.setRequired(true)
-	.addChoices([
-		{name: "discordCategoryID", value: "discordCategoryID"},
-		{name: "pingRoleID", value: "pingRoleID"}
-	])
-)
-.addStringOption(option => option
-	.setName('value')
-	.setDescription('New value. Can be `null`')
-	.setDescriptionLocalization('ru', 'Новое значение. Может быть установлен как `null`')
-	.setRequired(true)
-	.setChoices([
-		{name: 'null', value: 'null'}
-	])
-),
-async(interaction) => {
+.setCallback(async(interaction) => {
 	if (interaction.guild == null || !interaction.isChatInputCommand()) return;
 
 	await interaction.reply({embeds: [new EmbedBuilder()
 		.setTitle(`:hourglass_flowing_sand: Изменяю...`)
 		.setColor("#ffe8b6")
-	], ephemeral: true});
+	]});
 
 	var parameter = interaction.options.getString('parameter');
 	if (parameter == null) {
@@ -117,3 +98,22 @@ async(interaction) => {
 		]});
 	}
 });
+set.addStringOption(option => option
+	.setName('parameter')
+	.setDescription('"twitch-notifications" module parameter of this server')
+	.setDescriptionLocalization('ru', 'Параметр модуля "twitch-notifications" этого сервера')
+	.setRequired(true)
+	.addChoices([
+		{name: "discordCategoryID", value: "discordCategoryID"},
+		{name: "pingRoleID", value: "pingRoleID"}
+	])
+)
+.addStringOption(option => option
+	.setName('value')
+	.setDescription('New value. Can be `null`')
+	.setDescriptionLocalization('ru', 'Новое значение. Может быть установлен как `null`')
+	.setRequired(true)
+	.setChoices([
+		{name: 'null', value: 'null'}
+	])
+);
