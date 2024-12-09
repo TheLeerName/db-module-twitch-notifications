@@ -1,7 +1,7 @@
 import { configINI } from '../../../../core/index';
 import { SlashSubcommand, humanizeDuration } from './../../../../core/slash-commands';
 
-import { moduleName, moduleData } from './../../index';
+import { moduleName, moduleData, updateFetchChannelsID } from './../../index';
 import { saveData } from '../../helper-functions';
 
 import { EmbedBuilder } from 'discord.js';
@@ -10,8 +10,8 @@ var botCreatorDiscordID : string | null;
 
 export const secretSet = new SlashSubcommand()
 .setName('secret-set')
-.setDescription('Changes "twitch-notifications" module parameter. Works for bot creator only!')
-.setDescriptionLocalization('ru', 'Изменяет параметр модуля "twitch-notifications". Работает только для создателя бота!')
+.setDescription('Changes "twitch-notifications" module parameters. Works for bot creator only!')
+.setDescriptionLocalization('ru', 'Изменяет параметры модуля "twitch-notifications". Работает только для создателя бота!')
 .setCallback(async(interaction) => {
 	if (interaction.guild == null || !interaction.isChatInputCommand()) return;
 
@@ -19,26 +19,6 @@ export const secretSet = new SlashSubcommand()
 		.setTitle(`:hourglass_flowing_sand: Изменяю...`)
 		.setColor("#ffe8b6")
 	], ephemeral: true});
-
-	var parameter = interaction.options.getString('parameter');
-	if (parameter == null) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
-			.setTitle(`:x: Параметр \`parameter\` не указан!`)
-			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		]});
-		return;
-	}
-
-	var value = interaction.options.getString('value');
-	if (value == null) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
-			.setTitle(`:x: Параметр \`value\` не указан!`)
-			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		]});
-		return;
-	}
 
 	try	{
 		botCreatorDiscordID ??= configINI.get(moduleName, 'botCreatorDiscordID');
@@ -51,31 +31,23 @@ export const secretSet = new SlashSubcommand()
 			return;
 		}
 
-		if (!Reflect.has(moduleData, parameter)) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
-				.setTitle(`:x: Модуль "twitch-notifications" не имеет параметра \`${parameter}\`!`)
-				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-			]});
-			return;
-		}
+		var toChange: Map<string, string | null> = new Map();
+		toChange.set('twitchAccessToken', interaction.options.getString('twitch-access-token') ?? null);
 
-		const prevValue = Reflect.get(moduleData, parameter);
-		Reflect.set(moduleData, parameter, value);
+		const fields = [];
+		for (let [name, value] of toChange) {
+			fields.push({name, value: '`' + JSON.stringify(Reflect.get(moduleData, name)) + '` => `' + JSON.stringify(value) + '`'});
+			Reflect.set(moduleData, name, value);
+
+			switch(name) {
+				case 'twitchAccessToken': updateFetchChannelsID();
+			}
+		}
 		saveData();
 
 		await interaction.editReply({embeds: [new EmbedBuilder()
-			.setTitle(`:notepad_spiral: Параметр \`${parameter}\` был успешно изменён!`)
-			.setFields(
-				{
-					name: 'Прошлое значение',
-					value: `\`${JSON.stringify(prevValue)}\``
-				},
-				{
-					name: 'Новое значение',
-					value: `\`${JSON.stringify(value)}\``
-				}
-			)
+			.setTitle(`:notepad_spiral: Успешно!`)
+			.setFields(fields)
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
@@ -89,20 +61,7 @@ export const secretSet = new SlashSubcommand()
 	}
 });
 secretSet.addStringOption(option => option
-	.setName('parameter')
-	.setDescription('"twitch-notifications" module parameter')
-	.setDescriptionLocalization('ru', 'Параметр модуля "twitch-notifications"')
-	.setRequired(true)
-	.addChoices([
-		{name: "twitchAccessToken", value: "twitchAccessToken"}
-	])
-)
-.addStringOption(option => option
-	.setName('value')
-	.setDescription('New value. Can be `null`')
-	.setDescriptionLocalization('ru', 'Новое значение. Может быть установлен как `null`')
-	.setRequired(true)
-	.setChoices([
-		{name: 'null', value: 'null'}
-	])
+	.setName('twitch-access-token')
+	.setDescription('Access token of Twitch API')
+	.setDescriptionLocalization('ru', 'Токен доступа к Twitch API')
 );

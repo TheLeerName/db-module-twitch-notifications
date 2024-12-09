@@ -3,75 +3,41 @@ import { SlashSubcommand, humanizeDuration } from '../../../../core/slash-comman
 import { guildsData } from '../../index';
 import { validateGuildData, isNumber, updateUserDataByID, updateUserDataByLogin, saveData } from '../../helper-functions';
 
-import { EmbedBuilder } from 'discord.js';
+import { ChannelType, EmbedBuilder } from 'discord.js';
 
 export const channelSet = new SlashSubcommand()
 .setName('channel-set')
-.setDescription('Changes "twitch-notifications" module parameter of specific Twitch channel')
-.setDescriptionLocalization('ru', 'Изменяет параметр модуля "twitch-notifications" указанного Twitch-канала')
+.setDescription('Changes "twitch-notifications" module parameters of specific Twitch channel')
+.setDescriptionLocalization('ru', 'Изменяет параметры модуля "twitch-notifications" указанного Twitch-канала')
 .setCallback(async(interaction) => {
 	if (interaction.guild == null) return;
 
 	if (interaction.isAutocomplete()) {
-		try {
+		const choices: string[] = [];
+		const focused = interaction.options.getFocused(true);
+		if (focused.name == 'value') {
+			choices.push('null');
+		}
+		else {
 			const guildData = guildsData.get(interaction.guild.id) ?? await validateGuildData(interaction.guild.id);
-			const choices = [];
+			
 			for (let data of guildData.channels.values())
 				choices.push(data.userData.login);
+		}
 
-			await interaction.respond(choices.filter(choice => choice.startsWith(interaction.options.getFocused())).map(choice => ({ name: choice, value: choice })));
-		} catch(e) {}
+		await interaction.respond(choices.filter(choice => choice.startsWith(focused.value)).map(choice => ({ name: choice, value: choice })));
 		return;
 	}
 
 	if (!interaction.isChatInputCommand()) return;
 
+	var channel = interaction.options.getString('channel');
+	if (channel == null) return;
+
 	await interaction.reply({embeds: [new EmbedBuilder()
 		.setTitle(`:hourglass_flowing_sand: Изменяю...`)
 		.setColor("#ffe8b6")
 	]});
-
-	var channel = interaction.options.getString('channel');
-	if (channel == null) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
-			.setTitle(`:x: Параметр \`channel\` не указан!`)
-			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		]});
-		return;
-	}
-
-	var parameter = interaction.options.getString('parameter');
-	if (parameter == null) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
-			.setTitle(`:x: Параметр \`parameter\` не указан!`)
-			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		]});
-		return;
-	}
-
-	if (parameter == 'userData') {
-		await interaction.editReply({embeds: [new EmbedBuilder()
-			.setTitle(`:x: Вы не можете изменять "userData"!`)
-			.setDescription('Данный параметр содержит данные Twitch-канала которые синхронизируются с Twitch API автоматически')
-			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		]});
-		return;
-	}
-
-	var value = interaction.options.getString('value');
-	if (value == null) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
-			.setTitle(`:x: Параметр \`value\` не указан!`)
-			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		]});
-		return;
-	}
-	if (value == 'null')
-		value = null;
 
 	try	{
 		const guildData = guildsData.get(interaction.guild.id) ?? await validateGuildData(interaction.guild.id);
@@ -94,31 +60,19 @@ export const channelSet = new SlashSubcommand()
 			return;
 		}
 
-		if (!Reflect.has(guildData, parameter)) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
-				.setTitle(`:x: Модуль "twitch-notifications" указанного Twitch-канала не имеет параметра \`${parameter}\`!`)
-				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-			]});
-			return;
-		}
+		var toChange: Map<string, string | null> = new Map();
+		toChange.set('discordChannelID', interaction.options.getChannel('discord-channel')?.id ?? null);
 
-		const prevValue = Reflect.get(guildData, parameter);
-		Reflect.set(guildData, parameter, value);
+		const fields = [];
+		for (let [name, value] of toChange) {
+			fields.push({name, value: '`' + JSON.stringify(Reflect.get(v.channelData, name)) + '` => `' + JSON.stringify(value) + '`'});
+			Reflect.set(v.channelData, name, value);
+		}
 		saveData();
 
 		await interaction.editReply({embeds: [new EmbedBuilder()
-			.setTitle(`:notepad_spiral: Параметр \`${parameter}\` был успешно изменён!`)
-			.setFields(
-				{
-					name: 'Прошлое значение',
-					value: `\`${JSON.stringify(prevValue)}\``
-				},
-				{
-					name: 'Новое значение',
-					value: `\`${JSON.stringify(value)}\``
-				}
-			)
+			.setTitle(`:notepad_spiral: Успешно!`)
+			.setFields(fields)
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
@@ -138,22 +92,9 @@ channelSet.addStringOption(option => option
 	.setRequired(true)
 	.setAutocomplete(true)
 )
-.addStringOption(option => option
-	.setName('parameter')
-	.setDescription('"twitch-notifications" module parameter of specific Twitch channel')
-	.setDescriptionLocalization('ru', 'Параметр модуля "twitch-notifications" указанного Twitch-канала')
-	.setRequired(true)
-	.addChoices([
-		{name: "discordCategoryID", value: "discordCategoryID"},
-		{name: "pingRoleID", value: "pingRoleID"}
-	])
-)
-.addStringOption(option => option
-	.setName('value')
-	.setDescription('New value. Can be `null`')
-	.setDescriptionLocalization('ru', 'Новое значение. Может быть установлен как `null`')
-	.setRequired(true)
-	.setChoices([
-		{name: 'null', value: 'null'}
-	])
+.addChannelOption(option => option
+	.setName('discord-channel')
+	.setDescription('The channel where twitch notifications will be posted')
+	.setDescriptionLocalization('ru', 'Канал в котором уведомления будут отправляться')
+	.addChannelTypes(ChannelType.GuildAnnouncement)
 );
