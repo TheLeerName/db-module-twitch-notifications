@@ -2,7 +2,7 @@ import { setCallback, humanizeDuration } from '../../../../core/slash-commands';
 
 import { guildsData } from '../../index';
 import { ChannelData } from '../../types';
-import { validateGuildData, createDiscordCategoryChannel, isNumber, updateUserDataByID, updateUserDataByLogin, createDiscordNewsChannel, addTwitchChannelInData } from '../../helper-functions';
+import { getHelixSearchChannelsResponse, validateGuildData, createDiscordCategoryChannel, isNumber, updateUserDataByID, updateUserDataByLogin, createDiscordNewsChannel, addTwitchChannelInData } from '../../helper-functions';
 
 import { SlashCommandSubcommandBuilder, EmbedBuilder } from 'discord.js';
 
@@ -15,13 +15,23 @@ export const channelAdd = setCallback(new SlashCommandSubcommandBuilder()
 	.setDescription('Twitch channel login (as in browser link, without capital letters) or Twitch channel ID')
 	.setDescriptionLocalization('ru', 'Логин Twitch-канала (такой же как в ссылке браузера, без заглавных букв) или ID Twitch-канала')
 	.setRequired(true)
-	//.setAutocomplete(true)
+	.setAutocomplete(true)
 ),
 async(interaction) => {
 	if (interaction.guild == null) return;
 
-	//if (interaction.isAutocomplete())
-	// TODO: search from twitch api
+	if (interaction.isAutocomplete()) {
+		try {
+			const focused = interaction.options.getFocused();
+
+			const choices = [];
+			if (focused.length > 0) for (let data of (await getHelixSearchChannelsResponse('first=5&query=' + encodeURIComponent(focused))).values())
+				choices.push(data.broadcaster_login);
+
+			await interaction.respond(choices.filter(choice => choice.startsWith(focused)).map(choice => ({ name: choice, value: choice })));
+		} catch(e) {}
+		return;
+	}
 
 	if (!interaction.isChatInputCommand()) return;
 

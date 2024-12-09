@@ -14,18 +14,22 @@ export const channelSend = setCallback(new SlashCommandSubcommandBuilder()
 	.setDescription('Twitch channel login (as in browser link, without capital letters) or Twitch channel ID')
 	.setDescriptionLocalization('ru', 'Логин Twitch-канала (такой же как в ссылке браузера, без заглавных букв) или ID Twitch-канала')
 	.setRequired(true)
-	//.setAutocomplete(true)
+	.setAutocomplete(true)
 ),
 async(interaction) => {
 	if (interaction.guild == null) return;
 
-	/*if (interaction.isAutocomplete()) {
-		const focused = interaction.options.getFocused();
-		const filtered = ['asd', 'sab'].filter(choice => choice.startsWith(focused));
-		console.log(filtered.map(choice => ({ name: choice, value: choice })));
-		await interaction.respond(filtered.map(choice => ({ name: choice, value: choice })));
+	if (interaction.isAutocomplete()) {
+		try {
+			const guildData = guildsData.get(interaction.guild.id) ?? await validateGuildData(interaction.guild.id);
+			const choices = [];
+			for (let data of guildData.channels.values())
+				choices.push(data.userData.login);
+
+			await interaction.respond(choices.filter(choice => choice.startsWith(interaction.options.getFocused())).map(choice => ({ name: choice, value: choice })));
+		} catch(e) {}
 		return;
-	}*/
+	}
 
 	if (!interaction.isChatInputCommand()) return;
 

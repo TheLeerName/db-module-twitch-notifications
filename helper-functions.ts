@@ -9,6 +9,7 @@ import * as Discord from 'discord.js';
 const twitchIcon = "https://pngimg.com/d/twitch_PNG13.png";
 export const helixVideosURL = "https://api.twitch.tv/helix/videos?";
 export const helixUsersURL = "https://api.twitch.tv/helix/users?";
+export const helixSearchChannelsURL = "https://api.twitch.tv/helix/search/channels?";
 export const helixStreamsURL = "https://api.twitch.tv/helix/streams?";
 
 export function saveData() {
@@ -197,6 +198,28 @@ export async function getHelixVideosResponse(args: string): Promise<Map<string, 
 
 	if (json?.data != null) for (let r of json.data)
 		map.set(r.user_id, r);
+	return map;
+}
+
+/** @see https://dev.twitch.tv/docs/api/reference/#search-channels */
+export async function getHelixSearchChannelsResponse(args: string): Promise<Map<string, Twitch.HelixSearchChannelsResponseEntry>> {
+	var map: Map<string, Twitch.HelixSearchChannelsResponseEntry> = new Map();
+	var json: Twitch.HelixSearchChannelsResponse;
+	try {
+		json = await getTwitchResponseJson(helixSearchChannelsURL + args);
+		if (json.error == "Unauthorized") {
+			await validateAccessToken(clientID, clientSecret);
+			return await getHelixSearchChannelsResponse(args);
+		}
+		if (json.error != null)
+			throw `${json.error}: ${json.message}`;
+	} catch(e) {
+		L.error(`Fetch helix/search/channels failed!`, {args}, e);
+		return map;
+	}
+
+	if (json?.data != null) for (let r of json.data)
+		map.set(r.id, r);
 	return map;
 }
 

@@ -26,8 +26,7 @@ async(interaction) => {
 			for (let data of guildData.channels.values())
 				choices.push(data.userData.login);
 
-			const filtered = choices.filter(choice => choice.startsWith(interaction.options.getFocused()));
-			await interaction.respond(filtered.map(choice => ({ name: choice, value: choice })));
+			await interaction.respond(choices.filter(choice => choice.startsWith(interaction.options.getFocused())).map(choice => ({ name: choice, value: choice })));
 		} catch(e) {}
 		return;
 	}

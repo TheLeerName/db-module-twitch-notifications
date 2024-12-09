@@ -71,7 +71,7 @@ export interface HelixStreamsResponseEntry {
 	title: string;
 	/** count of viewers on stream, for example 78365 */
 	viewer_count: number;
-	/** when stream began, for example "2021-03-10T15:04:21Z" */
+	/** UTC date and time in RFC3339 format when stream began, for example "2021-03-10T15:04:21Z" */
 	started_at: string;
 	/** language of stream in ISO 639-1 format, for example "es" */
 	language: string;
@@ -122,7 +122,7 @@ export interface HelixUsersResponseEntry {
 	view_count: number;
 	/** user's verified email address, for example "not-real@email.com" */
 	email: string;
-	/** when user's account was created, for example "2021-03-10T15:04:21Z" */
+	/** UTC date and time in RFC3339 format of when user's account was created, for example "2021-03-10T15:04:21Z" */
 	created_at: string;
 }
 
@@ -152,9 +152,9 @@ export interface HelixVideosResponseEntry {
 	title: string;
 	/** description of video, for example "Welcome to Twitch development! Here is a quick overview of our products and information to help you get started." */
 	description: string;
-	/** when video was created, for example "2021-03-10T15:04:21Z" */
+	/** UTC date and time in RFC3339 format of when video was created, for example "2021-03-10T15:04:21Z" */
 	created_at: string;
-	/** when video was published, for example "2021-03-10T15:04:21Z" */
+	/** UTC date and time in RFC3339 format of when video was published, for example "2021-03-10T15:04:21Z" */
 	published_at: string;
 	/** url of video, for example "2021-03-10T15:04:21Z" */
 	url: string;
@@ -175,4 +175,47 @@ export interface HelixVideosResponseEntry {
 		/** offset from beginning of video where muted segment begins, in seconds */
 		offset: number
 	}[] | null;
+}
+
+export interface HelixSearchChannelsResponse {
+	/** The list of channels. */
+	data: HelixSearchChannelsResponseEntry[] | null;
+	/** The information used to page through the list of results. The object is empty if there are no more pages left to page through. */
+	pagination: {
+		/** Contains the cursor's value to be used in query parameters */
+		cursor: string
+	} | null;
+
+	/** contains error type if request failed, otherwise `null` */
+	error: "Unauthorized" | "Bad Request" | null;
+	/** contains error code if request failed, otherwise `null` */
+	status: 401 | 400| null;
+	/** contains error description if request failed, otherwise `null` */
+	message: string | null;
+}
+export interface HelixSearchChannelsResponseEntry {
+	/** language of broadcaster in ISO 639-1 format, for example "es" */
+	broadcaster_language: string;
+	/** channel name, for example "sandysanderman" */
+	broadcaster_login: string;
+	/** channel display name, for example "SandySanderman" */
+	display_name: string;
+	/** category or game id of last stream, for example "494131" */
+	game_id: string;
+	/** category or game name of last stream, for example "Little Nightmares" */
+	game_name: string;
+	/** channel id, for example "98765" */
+	id: string;
+	/** determines whether broadcaster is streaming or not */
+	is_live: boolean;
+	/** deprecated from 28.02.2023, use tags field instead */
+	tag_ids: string[];
+	/** tags of last stream, for example ["Español"] */
+	tags: string[];
+	/** url of user's profile image, for example "https://static-cdn.jtvnw.net/jtv_user_pictures/8a6381c7-d0c0-4576-b179-38bd5ce1d6af-profile_image-300x300.png" */
+	thumbnail_url: string;
+	/** title of last stream, for example "hablamos y le damos a Little Nightmares 1" */
+	title: string;
+	/** if broadcaster is currently streaming, returns UTC date and time in RFC3339 format, otherwise empty string, for example "2021-03-10T15:04:21Z" */
+	started_at: string;
 }
