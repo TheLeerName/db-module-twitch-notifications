@@ -12,11 +12,6 @@ export const send = new SlashSubcommand()
 .setCallback(async(interaction) => {
 	if (!interaction.isChatInputCommand() || interaction.guild == null) return;
 
-	await interaction.reply({embeds: [new EmbedBuilder()
-		.setTitle(`:hourglass_flowing_sand: Отправляю...`)
-		.setColor("#ffe8b6")
-	]});
-
 	try {
 		const guildData = guildsData.get(interaction.guild.id) ?? await validateGuildData(interaction.guild.id);
 		const data = guildDataToObj(guildData);
@@ -25,14 +20,14 @@ export const send = new SlashSubcommand()
 		for (let channelID of Object.keys(data.channels1)) data.channels.push(channelID);
 		Reflect.deleteProperty(data, 'channels1');
 
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:notepad_spiral: Параметры сервера ${interaction.guild.name}`)
 			.setDescription("```json\n" + JSON.stringify(data, null, '\t') + "\n```")
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
 	} catch(e) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Произошла ошибка при отправлении параметров сервера!`)
 			.setDescription(`\`\`\`\n${e}\n\`\`\``)
 			.setColor("#dd2e44")

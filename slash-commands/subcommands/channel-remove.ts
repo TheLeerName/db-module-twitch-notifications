@@ -26,14 +26,9 @@ export const channelRemove = new SlashSubcommand()
 
 	if (!interaction.isChatInputCommand()) return;
 
-	await interaction.reply({embeds: [new EmbedBuilder()
-		.setTitle(`:hourglass_flowing_sand: Удаляю...`)
-		.setColor("#ffe8b6")
-	]});
-
 	var value = interaction.options.getString('channel');
 	if (value == null) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Параметр \`channel\` не указан!`)
 			.setColor("#dd2e44")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -46,7 +41,7 @@ export const channelRemove = new SlashSubcommand()
 		var v = isNumber(value) ? await updateUserDataByID(guildData, value) : await updateUserDataByLogin(guildData, value);
 
 		if (v.userData == null) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не существует!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -55,7 +50,7 @@ export const channelRemove = new SlashSubcommand()
 		}
 
 		if (v.channelData == null) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не был добавлен в бота!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -66,13 +61,13 @@ export const channelRemove = new SlashSubcommand()
 		interaction.client.channels.cache.get(v.channelData.discordChannelID)?.delete();
 		removeTwitchChannelInData(guildData, v.channelData);
 
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:white_check_mark: Twitch-канал ${v.userData.display_name} был успешно удалён!`)
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
 	} catch(e) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Произошла ошибка при удалении канала!`)
 			.setDescription(`\`\`\`\n${e}\n\`\`\``)
 			.setColor("#dd2e44")

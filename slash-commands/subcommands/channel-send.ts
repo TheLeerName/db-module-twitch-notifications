@@ -26,14 +26,9 @@ export const channelSend = new SlashSubcommand()
 
 	if (!interaction.isChatInputCommand()) return;
 
-	await interaction.reply({embeds: [new EmbedBuilder()
-		.setTitle(`:hourglass_flowing_sand: Отправляю...`)
-		.setColor("#ffe8b6")
-	]});
-
 	var value = interaction.options.getString('channel');
 	if (value == null) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Параметр \`channel\` не указан!`)
 			.setColor("#dd2e44")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -46,7 +41,7 @@ export const channelSend = new SlashSubcommand()
 		var v = isNumber(value) ? await updateUserDataByID(guildData, value) : await updateUserDataByLogin(guildData, value);
 
 		if (v.userData == null) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не существует!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -54,7 +49,7 @@ export const channelSend = new SlashSubcommand()
 			return;
 		}
 		if (v.channelData == null) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не был добавлен в бота!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -62,14 +57,14 @@ export const channelSend = new SlashSubcommand()
 			return;
 		}
 
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:notepad_spiral: Параметры канала ${v.channelData.userData.display_name}`)
 			.setDescription("```json\n" + JSON.stringify(channelDataToObj(v.channelData), null, '\t') + "\n```")
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
 	} catch(e) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Произошла ошибка при отправлении параметров канала!`)
 			.setDescription(`\`\`\`\n${e}\n\`\`\``)
 			.setColor("#dd2e44")

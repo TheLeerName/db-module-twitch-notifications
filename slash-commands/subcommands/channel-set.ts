@@ -34,17 +34,12 @@ export const channelSet = new SlashSubcommand()
 	var channel = interaction.options.getString('channel');
 	if (channel == null) return;
 
-	await interaction.reply({embeds: [new EmbedBuilder()
-		.setTitle(`:hourglass_flowing_sand: Изменяю...`)
-		.setColor("#ffe8b6")
-	]});
-
 	try	{
 		const guildData = guildsData.get(interaction.guild.id) ?? await validateGuildData(interaction.guild.id);
 		var v = isNumber(channel) ? await updateUserDataByID(guildData, channel) : await updateUserDataByLogin(guildData, channel);
 
 		if (v.userData == null) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не существует!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -52,7 +47,7 @@ export const channelSet = new SlashSubcommand()
 			return;
 		}
 		if (v.channelData == null) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не был добавлен в бота!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -70,14 +65,14 @@ export const channelSet = new SlashSubcommand()
 		}
 		saveData();
 
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:notepad_spiral: Успешно!`)
 			.setFields(fields)
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
 	} catch(e) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Произошла ошибка при изменении параметра!`)
 			.setDescription(`\`\`\`\n${e}\n\`\`\``)
 			.setColor("#dd2e44")

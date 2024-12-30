@@ -12,11 +12,6 @@ export const set = new SlashSubcommand()
 .setCallback(async(interaction) => {
 	if (interaction.guild == null || !interaction.isChatInputCommand()) return;
 
-	await interaction.reply({embeds: [new EmbedBuilder()
-		.setTitle(`:hourglass_flowing_sand: Изменяю...`)
-		.setColor("#ffe8b6")
-	]});
-
 	try	{
 		var toChange: Map<string, string | null> = new Map();
 		toChange.set('discordCategoryID', interaction.options.getChannel('category')?.id ?? null);
@@ -30,14 +25,14 @@ export const set = new SlashSubcommand()
 		}
 		saveData();
 
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:notepad_spiral: Успешно!`)
 			.setFields(fields)
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
 	} catch(e) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Произошла ошибка при изменении параметра!`)
 			.setDescription(`\`\`\`\n${e}\n\`\`\``)
 			.setColor("#dd2e44")

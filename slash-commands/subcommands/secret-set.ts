@@ -15,16 +15,11 @@ export const secretSet = new SlashSubcommand()
 .setCallback(async(interaction) => {
 	if (interaction.guild == null || !interaction.isChatInputCommand()) return;
 
-	await interaction.reply({embeds: [new EmbedBuilder()
-		.setTitle(`:hourglass_flowing_sand: Изменяю...`)
-		.setColor("#ffe8b6")
-	], ephemeral: true});
-
 	try	{
 		if (botCreatorDiscordID.length == 0)
 			botCreatorDiscordID = config.getSection(moduleName).getValue('botCreatorDiscordID')!;
 		if (botCreatorDiscordID.length > 0 && botCreatorDiscordID != interaction.user.id) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Доступ запрещён. Вы не создатель бота!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -46,14 +41,14 @@ export const secretSet = new SlashSubcommand()
 		}
 		saveData();
 
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:notepad_spiral: Успешно!`)
 			.setFields(fields)
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
 	} catch(e) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Произошла ошибка при изменении параметра!`)
 			.setDescription(`\`\`\`\n${e}\n\`\`\``)
 			.setColor("#dd2e44")

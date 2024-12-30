@@ -28,14 +28,9 @@ export const channelAdd = new SlashSubcommand()
 
 	if (!interaction.isChatInputCommand()) return;
 
-	await interaction.reply({embeds: [new EmbedBuilder()
-		.setTitle(`:hourglass_flowing_sand: Добавляю...`)
-		.setColor("#ffe8b6")
-	]});
-
 	var value = interaction.options.getString('channel');
 	if (value == null) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Параметр \`channel\` не указан!`)
 			.setColor("#dd2e44")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -52,7 +47,7 @@ export const channelAdd = new SlashSubcommand()
 		var v = isNumber(value) ? await updateUserDataByID(guildData, value) : await updateUserDataByLogin(guildData, value);
 
 		if (v.userData == null) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не существует!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -61,7 +56,7 @@ export const channelAdd = new SlashSubcommand()
 		}
 
 		if (guildData.channels.get(v.userData.id) != null) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал уже был добавлен!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -82,7 +77,7 @@ export const channelAdd = new SlashSubcommand()
 
 		const ch = await createDiscordNewsChannel(interaction.guild.id, guildData, channelData);
 		if (ch == null) {
-			await interaction.editReply({embeds: [new EmbedBuilder()
+			await interaction.reply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Discord канал обьявлений не был создан!`)
 				.setColor("#dd2e44")
 				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
@@ -92,14 +87,14 @@ export const channelAdd = new SlashSubcommand()
 
 		addTwitchChannelInData(guildData, channelData);
 
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:white_check_mark: Twitch-канал ${v.userData.display_name} был успешно добавлен!`)
 			.setDescription('Уведомление стрима будет только на следующей трансляции')
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
 	} catch(e) {
-		await interaction.editReply({embeds: [new EmbedBuilder()
+		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Произошла ошибка при добавлении канала!`)
 			.setDescription(`\`\`\`\n${e}\n\`\`\``)
 			.setColor("#dd2e44")
