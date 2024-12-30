@@ -1,4 +1,4 @@
-import { configINI, client } from '../../core/index';
+import { config, client } from '../../core/index';
 import * as L from '../../core/logger';
 import * as Twitch from './twitch-types';
 import * as Types from './types';
@@ -36,6 +36,11 @@ export function main() {
 	// https://stackoverflow.com/a/76512104
 	setGlobalDispatcher(new Agent({ connect: { timeout: 60_000 } }) );
 
+	const sect = config.getSection(moduleName);
+	sect.addValue('twitchClientID', '', 'twitch app client id: https://dev.twitch.tv/console/apps')
+	.addValue('twitchClientSecret', '', 'twitch app client secret: https://dev.twitch.tv/console/apps')
+	.addValue('botCreatorDiscordID', '', 'discord profile id of person who created/hosting a bot (you!), allows to interact with module data (for ex. twitchAccessToken) by slash commands "/twitch config-secret-send" and "/twitch config-secret-set"');
+
 	client.on("guildCreate", guildCreate);
 	client.on("ready", ready);
 }
@@ -47,9 +52,10 @@ async function guildCreate(guild: Discord.Guild) {
 async function ready() {
 	await Helper.getData();
 
-	clientID = configINI.get(moduleName, 'twitchClientID');
-	clientSecret = configINI.get(moduleName, 'twitchClientSecret');
-	if (clientID != null && clientSecret != null) {
+	const sect = config.getSection(moduleName);
+	clientID = sect.getValue('twitchClientID')!;
+	clientSecret = sect.getValue('twitchClientSecret')!;
+	if (clientID.length > 0 && clientSecret.length > 0) {
 		updateFetchChannelsID();
 
 		try {
@@ -60,7 +66,7 @@ async function ready() {
 
 		twitchFetch();
 	} else
-		L.error('clientID or clientSecret is not specified (both required)');
+		L.error('twitchClientID or twitchClientSecret is not specified in config.ini (both required)');
 }
 
 export function updateFetchChannelsID() {

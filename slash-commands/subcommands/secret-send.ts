@@ -1,11 +1,11 @@
-import { configINI } from '../../../../core/index';
+import { config } from '../../../../core/index';
 import { SlashSubcommand, humanizeDuration } from './../../../../core/slash-commands';
 
 import { moduleName, moduleData } from './../../index';
 
 import { EmbedBuilder } from 'discord.js';
 
-var botCreatorDiscordID : string | null;
+var botCreatorDiscordID: string = "";
 
 export const secretSend = new SlashSubcommand()
 .setName('secret-send')
@@ -20,8 +20,9 @@ export const secretSend = new SlashSubcommand()
 	], ephemeral: true});
 
 	try {
-		botCreatorDiscordID ??= configINI.get(moduleName, 'botCreatorDiscordID');
-		if (botCreatorDiscordID != null && botCreatorDiscordID != interaction.user.id) {
+		if (botCreatorDiscordID.length == 0)
+			botCreatorDiscordID = config.getSection(moduleName).getValue('botCreatorDiscordID')!;
+		if (botCreatorDiscordID.length > 0 && botCreatorDiscordID != interaction.user.id) {
 			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Доступ запрещён. Вы не создатель бота!`)
 				.setColor("#dd2e44")
