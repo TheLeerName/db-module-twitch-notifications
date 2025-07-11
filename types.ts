@@ -1,43 +1,46 @@
-import * as Twitch from './twitch-types';
+import { ResponseBody } from 'twitch.ts';
 
-export interface GuildData {
-	discordCategoryID: string | null;
-	pingRoleID: string | null;
-	channels: Map<string, ChannelData>;
+export interface Module {
+	access_token: string;
+	refresh_token: string;
+	channels: Record<string, Channel>;
 }
 
-export interface ChannelData {
-	discordChannelID: string;
-	discordMessageID: string | null;
-	games: string[];
-
-	vodData: VODData | null;
-	userData: Twitch.HelixUsersResponseEntry;
-
-	live: boolean;
-	prevLive: boolean;
+export interface Guild {
+	discord_category_id: string;
+	ping_role_id: string | null;
+	channels: Record<string, GuildChannel>;
 }
 
-export interface VODData {
-	stream_id: string | null;
-	ended_at: string | null;
-	created_at: string | null;
-	title: string | null;
-	games: string[];
-	discordMessageID: string;
-	triesToGet: number;
+export interface GuildChannel {
+	discord_channel_id: string;
+	discord_message_id: string | null;
 }
 
-export interface ModuleData {
-	twitchAccessToken: string | null;
+export interface Channel {
+	subscriptions_id: string[];
+
+	user: ResponseBody.GetUsers["data"][0];
+	stream: Stream;
 }
 
-export interface UpdateUserData {
-	userData: Twitch.HelixUsersResponseEntry | null;
-	channelData: ChannelData | null;
-}
-
-export class HelixStreamsData extends Map<string, Twitch.HelixStreamsResponseEntry> {
-	previous: Map<string, Twitch.HelixStreamsResponseEntry> | null;
-	wasError: boolean;
+export type Stream = Stream.Offline | Stream.Live | Stream.GettingVOD;
+export namespace Stream {
+	export interface Offline<Status extends string = "offline"> {
+		status: Status;
+	}
+	export interface Live extends Offline<"live"> {
+		id: string;
+		started_at: string;
+		title: string;
+		games: string[];
+	}
+	export interface GettingVOD extends Offline<"getting_vod"> {
+		id: string;
+		started_at: string;
+		title: string;
+		games: string[];
+		ended_at: string;
+		tries_to_get: number;
+	}
 }

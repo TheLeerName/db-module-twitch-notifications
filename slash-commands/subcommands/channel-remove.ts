@@ -1,84 +1,74 @@
 import { SlashSubcommand, humanizeDuration } from '../../../../core/slash-commands';
-
-import { guildsData } from '../../index';
-import { validateGuildData, isNumber, updateUserDataByID, updateUserDataByLogin, removeTwitchChannelInData } from '../../helper-functions';
+import { getDiscordChannelByID } from '../../../../core/index';
+import * as L from '../../../../core/logger';
+import * as Main from '../../index';
+import { Channel } from '../../types';
 
 import { EmbedBuilder } from 'discord.js';
 
-export const channelRemove = new SlashSubcommand()
+export const command = new SlashSubcommand()
 .setName('channel-remove')
-.setDescription('Removes Twitch channel from "twitch-notifications" module')
-.setDescriptionLocalization('ru', 'Удаляет Twitch-канал из модуля "twitch-notifications"')
-.setCallback(async(interaction) => {
+.setDescription(`Removes Twitch channel from "${Main.module_name}" module. NOTE: removes a channel completely`)
+.setDescriptionLocalization('ru', `Удаляет Twitch-канал из модуля "${Main.module_name}". ВНИМАНИЕ: удаляет канал полностью`)
+.setAutocomplete(async(interaction) => {
 	if (interaction.guild == null) return;
 
-	if (interaction.isAutocomplete()) {
-		try {
-			const guildData = guildsData.get(interaction.guild.id) ?? await validateGuildData(interaction.guild.id);
-			const choices = [];
-			for (let data of guildData.channels.values())
-				choices.push(data.userData.login);
-
-			await interaction.respond(choices.filter(choice => choice.startsWith(interaction.options.getFocused())).map(choice => ({ name: choice, value: choice })));
-		} catch(e) {}
-		return;
-	}
-
-	if (!interaction.isChatInputCommand()) return;
-
-	var value = interaction.options.getString('channel');
-	if (value == null) {
-		await interaction.reply({embeds: [new EmbedBuilder()
-			.setTitle(`:x: Параметр \`channel\` не указан!`)
-			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		]});
-		return;
-	}
-
 	try {
-		const guildData = guildsData.get(interaction.guild.id) ?? await validateGuildData(interaction.guild.id);
-		var v = isNumber(value) ? await updateUserDataByID(guildData, value) : await updateUserDataByLogin(guildData, value);
+		const guild = Main.data.guilds[interaction.guild.id] ?? await Main.guildCreate(interaction.guild);
+		const choices = [];
+		for (const channel_id of Object.keys(guild.channels))
+			choices.push(Main.data.global.channels[channel_id].user.login);
 
-		if (v.userData == null) {
-			await interaction.reply({embeds: [new EmbedBuilder()
-				.setTitle(`:x: Указанный Twitch-канал не существует!`)
-				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-			]});
-			return;
+		await interaction.respond(choices.filter(choice => choice.startsWith(interaction.options.getFocused())).map(choice => ({ name: choice, value: choice })));
+	} catch(e) {}
+})
+.setChatInput(async(interaction) => {
+	if (interaction.guild == null) return;
+
+	const value = interaction.options.getString('channel')!;
+	try {
+		if (value.length < 1) throw new Error("Параметр channel не указан");
+
+		const guild = Main.data.guilds[interaction.guild.id] ?? await Main.guildCreate(interaction.guild);
+
+		const isNumber = Main.isNumber(value);
+		var channel: Channel | null = null;
+		for (const ch of Object.values(Main.data.global.channels)) {
+			if ((isNumber ? ch.user.id : ch.user.login) === value)
+				channel = ch;
 		}
+		if (channel == null) throw new Error("Указанный Twitch-канал не был добавлен в бота!");
+		const guild_channel = guild.channels[channel.user.id];
 
-		if (v.channelData == null) {
-			await interaction.reply({embeds: [new EmbedBuilder()
-				.setTitle(`:x: Указанный Twitch-канал не был добавлен в бота!`)
-				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-			]});
-			return;
-		}
+		const channel_discord = await getDiscordChannelByID(guild_channel.discord_channel_id);
+		if (channel_discord) channel_discord.delete(`Удаление из модуля "twitch-notifications"`);
 
-		interaction.client.channels.cache.get(v.channelData.discordChannelID)?.delete();
-		removeTwitchChannelInData(guildData, v.channelData);
+		await Main.removeTwitchChannelInData(guild, channel);
+		Main.data.guildsSave();
+		await Main.changeStateEventSub();
 
 		await interaction.reply({embeds: [new EmbedBuilder()
-			.setTitle(`:white_check_mark: Twitch-канал ${v.userData.display_name} был успешно удалён!`)
+			.setTitle(`:white_check_mark: Twitch-канал ${channel.user.display_name} был успешно удалён из оповещений!`)
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
+		L.info(`Command twitch channel-remove success`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value });
 	} catch(e) {
+		const error = e as Error;
 		await interaction.reply({embeds: [new EmbedBuilder()
-			.setTitle(`:x: Произошла ошибка при удалении канала!`)
-			.setDescription(`\`\`\`\n${e}\n\`\`\``)
+			.setTitle(`:x: Ошибка!`)
+			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
+		L.error(`Command twitch channel-remove failed`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value }, error);
 	}
 });
-channelRemove.addStringOption(option => option
+command.addStringOption(option => option
 	.setName('channel')
 	.setDescription('Twitch channel login (as in browser link, without capital letters) or Twitch channel ID')
 	.setDescriptionLocalization('ru', 'Логин Twitch-канала (такой же как в ссылке браузера, без заглавных букв) или ID Twitch-канала')
 	.setRequired(true)
 	.setAutocomplete(true)
 );
+export default command;

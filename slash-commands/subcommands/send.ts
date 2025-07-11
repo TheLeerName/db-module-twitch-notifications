@@ -1,37 +1,47 @@
 import { SlashSubcommand, humanizeDuration } from '../../../../core/slash-commands';
-
-import { guildsData } from '../../index';
-import { validateGuildData, guildDataToObj } from '../../helper-functions';
+import * as L from '../../../../core/logger';
+import * as Main from '../../index';
 
 import { EmbedBuilder } from 'discord.js';
 
-export const send = new SlashSubcommand()
+const command = new SlashSubcommand()
 .setName('send')
-.setDescription('Sends "twitch-notifications" module parameters of this server')
-.setDescriptionLocalization('ru', 'Отправляет параметры модуля "twitch-notifications" этого сервера')
-.setCallback(async(interaction) => {
-	if (!interaction.isChatInputCommand() || interaction.guild == null) return;
+.setDescription(`Sends "${Main.module_name}" module parameters of this server`)
+.setDescriptionLocalization('ru', `Отправляет параметры модуля "${Main.module_name}" этого сервера`)
+.setChatInput(async(interaction) => {
+	if (interaction.guild == null) return;
 
 	try {
-		const guildData = guildsData.get(interaction.guild.id) ?? await validateGuildData(interaction.guild.id);
-		const data = guildDataToObj(guildData);
-		data.channels1 = data.channels;
-		data.channels = [];
-		for (let channelID of Object.keys(data.channels1)) data.channels.push(channelID);
-		Reflect.deleteProperty(data, 'channels1');
-
+		const guild = Main.data.guilds[interaction.guild.id] ?? await Main.guildCreate(interaction.guild);
 		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:notepad_spiral: Параметры сервера ${interaction.guild.name}`)
-			.setDescription("```json\n" + JSON.stringify(data, null, '\t') + "\n```")
+			.setFields(
+				{
+					name: "Категория для создания каналов",
+					value: `<#${guild.discord_category_id}>`
+				},
+				{
+					name: "Роль для пинга в сообщении",
+					value: guild.ping_role_id ? `<@${guild.ping_role_id}>` : `*не установлено*`
+				},
+				{
+					name: "Добавленных каналов",
+					value: `${Object.keys(guild.channels).length}`
+				}
+			)
 			.setColor("#77b255")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
+		L.info(`Command twitch send success`, { user: `${interaction.user.username} (${interaction.guild.name})` });
 	} catch(e) {
+		const error = e as Error;
 		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Произошла ошибка при отправлении параметров сервера!`)
-			.setDescription(`\`\`\`\n${e}\n\`\`\``)
+			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
 			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
 		]});
+		L.error(`Command twitch send failed`, { user: `${interaction.user.username} (${interaction.guild.name})` }, error);
 	}
 });
+export default command;
