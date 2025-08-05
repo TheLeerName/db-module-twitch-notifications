@@ -4,8 +4,9 @@ import { ResponseBody } from 'twitch.ts';
 
 const twitch_icon = "https://pngimg.com/d/twitch_PNG13.png";
 
-function translateToRU_gameName(game_name: string): string {
+export function translateToRU_gameName(game_name: string): string {
 	switch(game_name) {
+		case '': return 'Без категории';
 		case 'Just Chatting': return 'Общение';
 		case 'Games + Demos': return 'Игры и Демо';
 		case 'Politics': return 'Политика';

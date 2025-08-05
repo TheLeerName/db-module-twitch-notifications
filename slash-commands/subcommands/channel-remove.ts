@@ -44,8 +44,9 @@ export const command = new SlashSubcommand()
 		if (channel_discord) channel_discord.delete(`Удаление из модуля "twitch-notifications"`);
 
 		await Main.removeTwitchChannelInData(guild, channel);
-		Main.data.guildsSave();
 		await Main.changeStateEventSub();
+		Main.data.globalSave();
+		Main.data.guildsSave();
 
 		await interaction.reply({embeds: [new EmbedBuilder()
 			.setTitle(`:white_check_mark: Twitch-канал ${channel.user.display_name} был успешно удалён из оповещений!`)

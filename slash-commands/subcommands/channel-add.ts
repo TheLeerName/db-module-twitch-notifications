@@ -92,9 +92,9 @@ const command = new SlashSubcommand()
 			]});
 
 		await Main.addTwitchChannelInData(guild, channel, channel_discord.id);
+		await Main.changeStateEventSub();
 		Main.data.guildsSave();
 		Main.data.globalSave();
-		await Main.changeStateEventSub();
 
 		const msg = {embeds: [new EmbedBuilder()
 			.setTitle(`:white_check_mark: Twitch-канал ${channel.user.display_name} был успешно добавлен в оповещения! Уведомление о стриме будет только на следующей трансляции`)

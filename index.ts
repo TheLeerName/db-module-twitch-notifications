@@ -1,7 +1,7 @@
 import { config, client, all_data, getDiscordChannelByID } from '../../core/index';
 import { Section } from '../../core/ini-parser';
 import * as L from '../../core/logger';
-import { Request, ResponseBody, Authorization, EventSub } from 'twitch.ts';
+import { Request, ResponseBody, Authorization, EventSub, ResponseBodyError } from 'twitch.ts';
 import * as Types from './types';
 import * as Messages from './messages';
 
@@ -55,7 +55,6 @@ var connection: EventSub.Connection | null;
 var client_secret: string = "";
 var redirect_url: string = "";
 var initialized = false;
-const subscriptions_id: string[] = [];
 const polling_channels_id: string[] = [];
 
 export enum ErrorMessages {
@@ -95,8 +94,8 @@ export async function main() {
 }
 async function onFirstReady() {
 	if (data.global.refresh_token.length < 1) {
-		const authorization_code: string | null = config_section.getValue("twitchAuthorizationCode") ?? "";
-		if (authorization_code?.length < 1) {
+		const authorization_code: string = config_section.getValue("twitchAuthorizationCode") ?? "";
+		if (authorization_code.length < 1) {
 			L.error("twitchAuthorizationCode is not specified!", {file: "config.ini"});
 			return process.exit(1);
 		}
@@ -107,8 +106,7 @@ async function onFirstReady() {
 			return process.exit(1);
 		}
 
-		data.global.access_token = response.access_token;
-		authorization.token = response.access_token;
+		data.global.access_token = authorization.token = response.access_token;
 		authorization.scopes = response.scope;
 		authorization.expires_in = response.expires_in;
 		data.global.refresh_token = response.refresh_token;
@@ -132,20 +130,26 @@ async function onFirstReady() {
 		}
 	}
 
-	const response = await Request.GetStreams(authorization, Object.keys(data.global.channels), undefined, undefined, "live");
+	const response: ResponseBody.GetStreams | ResponseBodyError = await Request.GetStreams(authorization, Object.keys(data.global.channels), undefined, undefined, "live");
 	if (!response.ok)
 		return L.error("Checking if streamers is live failed!", {code: response.status}, response.message);
 	const response_record: Record<string, ResponseBody.GetStreams["data"][0]> = {};
-	for (let entry of response.data)
+	for (const entry of response.data)
 		response_record[entry.user_id] = entry;
 
-	for (let [channel_id, channel] of Object.entries(data.global.channels)) {
+	for (const [channel_id, channel] of Object.entries(data.global.channels)) {
 		const entry = response_record[channel_id];
 		if (entry != null) polling_channels_id.push(channel_id);
+		for (const id of channel.subscriptions_id) {
+			await Request.DeleteEventSubSubscription(authorization, id);
+			channel.subscriptions_id.shift();
+		}
 		await addTwitchChannelInEventSub(channel);
 	}
-	data.guildsSave();
 	await changeStateEventSub();
+	data.globalSave();
+	data.guildsSave();
+	getStreamsPolling();
 }
 export async function guildCreate(guild: Discord.Guild) {
 	const category = await createDiscordCategoryChannel(guild.id);
@@ -168,17 +172,25 @@ async function onStreamOnline(event: EventSub.Payload.StreamOnline["event"]) {
 	if (polling_channels_id.includes(event.broadcaster_user_id)) return;
 	polling_channels_id.push(event.broadcaster_user_id);
 
-	L.info(`Stream started`, {channel: event.broadcaster_user_name});
 	const channel = data.global.channels[event.broadcaster_user_id];
 	channel.user = await getUser(channel) ?? channel.user;
 
-	var entry = await skipGetStreamsPollingTimeout(event.broadcaster_user_id);
-	while(!entry && channel.stream.status === "offline") entry = await new Promise(resolve => setTimeout(async() => resolve(await skipGetStreamsPollingTimeout(event.broadcaster_user_id)), 1000));
-
-	if (entry) makeStreamOnlineMessage(channel, entry);
+	const entry: ResponseBody.GetStreams["data"][0] = await new Promise(resolve => {
+		// skipping it properly
+		if (polling_timeout) {
+			clearTimeout(polling_timeout);
+			polling_timeout = null;
+		}
+		getStreamsPolling().then(() => {
+			const r = get_streams_prev?.[event.broadcaster_user_id];
+			if (r) resolve(r);
+		});
+	});
+	makeStreamOnlineMessage(channel, entry);
 }
 
 async function makeStreamOnlineMessage(channel: Types.Channel, entry: ResponseBody.GetStreams["data"][0]) {
+	if (channel.stream.status === "live") return;
 	channel.stream = {
 		status: "live",
 		id: entry.id,
@@ -187,9 +199,9 @@ async function makeStreamOnlineMessage(channel: Types.Channel, entry: ResponseBo
 		games: [entry.game_name]
 	};
 
-	for (let guild of Object.values(data.guilds)) {
-		const { discord_channel_id } = guild.channels[channel.user.id];
-		const channel_discord = await getDiscordChannelByID(discord_channel_id);
+	for (const guild of Object.values(data.guilds)) {
+		const guild_channel = guild.channels[channel.user.id];
+		const channel_discord = await getDiscordChannelByID(guild_channel.discord_channel_id);
 		if (!channel_discord || (channel_discord.type !== Discord.ChannelType.GuildText && channel_discord.type !== Discord.ChannelType.GuildAnnouncement)) {
 			L.error(`Tried to get Discord.NewsChannel`, { channel: channel.user.login }, ErrorMessages.CHANNEL_WRONG_TYPE);
 			continue;
@@ -197,10 +209,15 @@ async function makeStreamOnlineMessage(channel: Types.Channel, entry: ResponseBo
 
 		channel_discord.setName('『🔴』' + channel.user.login);
 		const message = await channel_discord.send(Messages.streamStart(channel.user, channel.stream, entry, guild.ping_role_id));
-		guild.channels[channel.user.id].discord_message_id = message.id;
+		await (await getThread(message)).send(getDiscordMessagePrefix(":green_circle: Стрим запущен", entry.started_at));
+		guild_channel.discord_message_id = message.id;
+		checkForStreamChanges(channel, channel.stream, guild_channel.discord_channel_id, guild_channel.discord_message_id, guild.ping_role_id, entry);
+		try { client.rest.post(Discord.Routes.channelMessageCrosspost(message.channelId, message.id)) } // thx to https://github.com/Vedinsoh/discord-auto-publisher/blob/8a284fafdac7d4b3fab33b3335de53ac9ea79be2/services/rest/src/data/api/discord.ts#L32 <3
+		catch(e) { L.error("Publishing message error", { channel: `${channel.user.login} (${message.guild.name})`, message_id: message.id }, e); }
 	}
 	data.guildsSave();
 	data.globalSave();
+	L.info(`Stream started`, {channel: channel.user.display_name});
 }
 
 async function onStreamOffline(event: EventSub.Payload.StreamOffline["event"]) {
@@ -213,12 +230,13 @@ async function onStreamOffline(event: EventSub.Payload.StreamOffline["event"]) {
 	if (!removed) return;
 
 	const channel = data.global.channels[event.broadcaster_user_id];
-	channel.user.login = event.broadcaster_user_login;
-	channel.user.login = event.broadcaster_user_name;
-	L.info(`Stream ended`, {channel: event.broadcaster_user_name});
 
 	channel.user = await getUser(channel) ?? channel.user;
-	if (channel.stream.status !== "live") return L.error(`Tried to get status`, {channel: event.broadcaster_user_name, method: `data.global.channels["${event.broadcaster_user_id}"].stream.status`}, `Isn't live`);
+	makeStreamOfflineMessage(channel);
+}
+
+async function makeStreamOfflineMessage(channel: Types.Channel) {
+	if (channel.stream.status !== "live") return;
 	channel.stream = {
 		status: "getting_vod",
 		id: channel.stream.id,
@@ -230,120 +248,107 @@ async function onStreamOffline(event: EventSub.Payload.StreamOffline["event"]) {
 	};
 
 	for (const [guild_id, guild] of Object.entries(data.guilds)) {
-		const guild_channel = guild.channels[event.broadcaster_user_id];
-		if (!guild_channel.discord_message_id) {
-			L.error(`Tried to get discord_message_id`, {channel: event.broadcaster_user_name, method: `data.guilds["${guild_id}"].channels["${event.broadcaster_user_id}"].discord_message_id`}, `Is null`);
-			continue;
-		}
+		const guild_channel = guild.channels[channel.user.id];
+		if (!guild_channel.discord_message_id) continue;
 
 		const message = await getDiscordMessageByID(guild_channel.discord_channel_id, guild_channel.discord_message_id);
 		if (message === ErrorMessages.CHANNEL_WRONG_TYPE || message === ErrorMessages.CHANNEL_NOT_FOUND || message === ErrorMessages.MESSAGE_NOT_FOUND) {
-			L.error(`Tried to get Discord.TextChannel`, {channel: event.broadcaster_user_name}, message);
+			L.error(`Tried to get Discord.TextChannel`, {channel: channel.user.login}, message);
 			continue;
 		}
 
-		await message.channel.setName(`『⚫』${event.broadcaster_user_login}`);
+		await (await getThread(message)).send(getDiscordMessagePrefix(":red_circle: Стрим окончен", channel.stream.ended_at));
+		await message.channel.setName(`『⚫』${channel.user.login}`);
 		await message.edit(Messages.streamEnd(channel.user, channel.stream, guild.ping_role_id));
-		await (await getThread(message)).send(getDiscordMessagePrefix(":red_circle: Стрим окончен"));
 	}
 	data.globalSave();
 	data.globalSave();
+	L.info(`Stream ended`, {channel: channel.user.login});
 }
 
 var get_streams_prev: Record<string, ResponseBody.GetStreams["data"][0]> | null = null;
-var polling_was_error: boolean = false;
 var polling_timeout: NodeJS.Timeout | null = null;
-async function getStreamsPolling(channel_id?: string) {
-	var ret: ResponseBody.GetStreams["data"][0] | null = null;
-
+async function getStreamsPolling() {
 	if (polling_channels_id.length > 0) {
-		var get_streams = await Request.GetStreams(authorization, polling_channels_id, undefined, undefined, "live");
-		if (!get_streams.ok && get_streams.status === 401) {
-			await refreshToken();
-			get_streams = await Request.GetStreams(authorization, polling_channels_id, undefined, undefined, "live");
-		}
-		const get_streams_record = get_streams.ok ? arrayToRecord(get_streams.data, "id") : {};
+		const get_streams: ResponseBody.GetStreams = await new Promise(resolve => {
+			async function fun() {
+				const r = await Request.GetStreams(authorization, polling_channels_id, undefined, undefined, "live");
+				if (r.status === 401)
+					await refreshToken();
+				if (r.ok)
+					resolve(r);
+				else
+					setTimeout(fun, 5000);
+			}
+			fun();
+		});
+		const get_streams_record = arrayToRecord(get_streams.data, "user_id");
 
-		if (!channel_id) {
-			if (get_streams.ok && get_streams_prev) for (const guild of Object.values(data.guilds)) for (const [channel_id, guild_channel] of Object.entries(guild.channels)) {
-				const channel = data.global.channels[channel_id];
-				if (get_streams_record[channel_id] && channel.stream.status === "live" && guild_channel.discord_message_id) {
-					checkForStreamChanges(channel, channel.stream, guild_channel.discord_channel_id, guild_channel.discord_message_id, guild.ping_role_id, get_streams_prev[channel_id], get_streams_record[channel_id]);
+		if (get_streams_prev) for (const guild of Object.values(data.guilds)) for (const [channel_id, guild_channel] of Object.entries(guild.channels)) {
+			const channel = data.global.channels[channel_id];
+			if (channel.stream.status === "offline" && get_streams_record[channel_id] != null)
+				makeStreamOnlineMessage(channel, get_streams_record[channel_id]);
+			//if (channel.stream.status === "live" && get_streams_record[channel_id] )
+			if (get_streams_record[channel_id] && channel.stream.status === "live" && guild_channel.discord_message_id)
+				checkForStreamChanges(channel, channel.stream, guild_channel.discord_channel_id, guild_channel.discord_message_id, guild.ping_role_id, get_streams_record[channel_id], get_streams_prev[channel_id]);
+		}
+
+		get_streams_prev = get_streams_record;
+	}
+
+	for (const [channel_id, channel] of Object.entries(data.global.channels)) {
+		if (channel.stream.status === "getting_vod") {
+			channel.stream.tries_to_get--;
+
+			var response = await Request.GetVideos(authorization, { user_id: channel_id }, undefined, undefined, "time", "archive", 1);
+			if (!response.ok && response.status === 401) {
+				await refreshToken();
+				response = await Request.GetVideos(authorization, { user_id: channel_id }, undefined, undefined, "time", "archive", 1);
+			}
+			if (response.ok && response.data.length > 0) {
+				const entry = response.data[0];
+				if (entry?.stream_id && entry.stream_id === channel.stream.id) {
+					L.info(`Got VOD of stream`, {channel: channel.user.login, url: entry.url});
+					for (const [guild_id, guild] of Object.entries(data.guilds)) {
+						const guild_channel = guild.channels[channel_id];
+						if (!guild_channel.discord_message_id)
+							return L.error(`Tried to get discord_message_id`, {channel: channel.user.login, method: `guilds_data["${guild_id}"].channels["${channel_id}"].discord_message_id`}, `Is null`);
+
+						const message = await getDiscordMessageByID(guild_channel.discord_channel_id, guild_channel.discord_message_id);
+						if (message === ErrorMessages.CHANNEL_NOT_FOUND || message === ErrorMessages.CHANNEL_WRONG_TYPE || message === ErrorMessages.MESSAGE_NOT_FOUND) {
+							L.error(`Tried to get Discord.Message<true>`, {channel: channel.user.login}, message);
+							continue;
+						}
+
+						await message.edit(Messages.streamEndWithVOD(channel.user, channel.stream, entry, guild.ping_role_id));
+						await (await getThread(message)).send(getDiscordMessagePrefix(":vhs: Получена запись стрима"));
+					}
+					channel.stream = { status: "offline" };
 				}
 			}
+			else if (channel.stream.tries_to_get < 0) {
+				L.info(`Failed to get VOD of stream because tries are over`, {channel: channel.user.login});
+				for (const [guild_id, guild] of Object.entries(data.guilds)) {
+					const guild_channel = guild.channels[channel_id];
+					if (!guild_channel.discord_message_id)
+						return L.error(`Tried to get discord_message_id`, {channel: channel.user.login, method: `guilds_data["${guild_id}"].channels["${channel_id}"].discord_message_id`}, `Is null`);
 
-			for (const [channel_id, channel] of Object.entries(data.global.channels)) {
-				if (channel.stream.status === "getting_vod") {
-					channel.stream.tries_to_get--;
-
-					var response = await Request.GetVideos(authorization, { user_id: channel_id }, undefined, undefined, "time", "archive", 1);
-					if (!response.ok && response.status === 401) {
-						await refreshToken();
-						response = await Request.GetVideos(authorization, { user_id: channel_id }, undefined, undefined, "time", "archive", 1);
-					}
-					if (response.ok && response.data.length > 0) {
-						const entry = response.data[0];
-						if (entry?.stream_id && entry.stream_id === channel.stream.id) {
-							L.info(`Got VOD of stream`, {channel: channel.user.login, url: entry.url});
-							for (const [guild_id, guild] of Object.entries(data.guilds)) {
-								const guild_channel = guild.channels[channel_id];
-								if (!guild_channel.discord_message_id) return L.error(`Tried to get discord_message_id`, {channel: channel.user.login, method: `guilds_data["${guild_id}"].channels["${channel_id}"].discord_message_id`}, `Is null`);
-
-								const message = await getDiscordMessageByID(guild_channel.discord_channel_id, guild_channel.discord_message_id);
-								if (message === ErrorMessages.CHANNEL_NOT_FOUND || message === ErrorMessages.CHANNEL_WRONG_TYPE || message === ErrorMessages.MESSAGE_NOT_FOUND) {
-									L.error(`Tried to get Discord.Message<true>`, {channel: channel.user.login}, message);
-									continue;
-								}
-
-								await message.edit(Messages.streamEndWithVOD(channel.user, channel.stream, entry, guild.ping_role_id));
-								await (await getThread(message)).send(getDiscordMessagePrefix(":vhs: Получена запись стрима"));
-							}
-						}
+					const message = await getDiscordMessageByID(guild_channel.discord_channel_id, guild_channel.discord_message_id);
+					guild_channel.discord_message_id = null;
+					channel.stream = { status: "offline" };
+					if (message === ErrorMessages.CHANNEL_NOT_FOUND || message === ErrorMessages.CHANNEL_WRONG_TYPE || message === ErrorMessages.MESSAGE_NOT_FOUND) {
+						L.error(`Tried to get Discord.Message<true>`, {channel: channel.user.login}, message);
+						continue;
 					}
 
-					if (channel.stream.tries_to_get < 0) {
-						L.info(`Failed to get VOD of stream because tries are over`, {channel: channel.user.login});
-						for (const [guild_id, guild] of Object.entries(data.guilds)) {
-							const guild_channel = guild.channels[channel_id];
-							if (!guild_channel.discord_message_id) return L.error(`Tried to get discord_message_id`, {channel: channel.user.login, method: `guilds_data["${guild_id}"].channels["${channel_id}"].discord_message_id`}, `Is null`);
-
-							const message = await getDiscordMessageByID(guild_channel.discord_channel_id, guild_channel.discord_message_id);
-							if (message === ErrorMessages.CHANNEL_NOT_FOUND || message === ErrorMessages.CHANNEL_WRONG_TYPE || message === ErrorMessages.MESSAGE_NOT_FOUND) {
-								L.error(`Tried to get Discord.Message<true>`, {channel: channel.user.login}, message);
-								continue;
-							}
-
-							await (await getThread(message)).send(getDiscordMessagePrefix(":x: Запись стрима не была найдена, возможно они были скрыты"));
-						}
-					}
+					await (await getThread(message)).send(getDiscordMessagePrefix(":x: Запись стрима не была найдена, возможно записи были скрыты стримером"));
 				}
 			}
-		}
-
-		if (get_streams.ok) {
-			if (polling_was_error) {
-				L.info('fetched successfully! no worries! probably some internet error idk');
-				polling_was_error = false;
-			}
-
-			get_streams_prev = get_streams_record;
-			if (channel_id) ret = get_streams_record[channel_id];
-		}
-		else {
-			polling_was_error = true;
-			L.error("Polling of Request.GetStreams failed!", {code: get_streams.status}, get_streams.message);
+			data.globalSave();
 		}
 	}
 
 	polling_timeout = setTimeout(getStreamsPolling, 5000);
-	return ret;
-}
-async function skipGetStreamsPollingTimeout(channel_id?: string) {
-	if (polling_timeout) {
-		clearTimeout(polling_timeout);
-		polling_timeout = null;
-	}
-	return await getStreamsPolling(channel_id);
 }
 
 function initializeClient() {
@@ -386,7 +391,7 @@ export async function refreshToken() {
 
 const numbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 export function isNumber(str: string): boolean {
-	for (let c of str) if (!numbers.includes(c)) return false;
+	for (const c of str) if (!numbers.includes(c)) return false;
 	return true;
 }
 function arrayToRecord<T extends {}>(array: T[], key: string): Record<string, T> {
@@ -436,30 +441,35 @@ export async function getThread(message: Discord.Message<true>) {
 export function getDiscordMessagePrefix(add: string | null, date?: string | null): string {
   	return `<t:${Math.floor((new Date(date ?? Date.now())).getTime() / 1000)}:t> | ${add ?? ''}`;
 }
-async function checkForStreamChange(channel: Types.Channel, stream: Types.Stream.Live, ping_role_id: string | null, message: Discord.Message<true>, prev_entry: ResponseBody.GetStreams["data"][0], entry: ResponseBody.GetStreams["data"][0], entry_name: string, emoji: string, display_name: string, onChange?: ()=>void) {
+async function checkForStreamChange(channel: Types.Channel, stream: Types.Stream.Live, ping_role_id: string | null, message: Discord.Message<true>, entry: ResponseBody.GetStreams["data"][0], prev_entry: ResponseBody.GetStreams["data"][0] | undefined, entry_name: string, emoji: string, display_name: string, onChange?: ()=>void) {
 	const value = Reflect.get(entry, entry_name);
-	const prev_value = Reflect.get(prev_entry, entry_name);
+	const prev_value = prev_entry != null ? Reflect.get(prev_entry, entry_name) : {};
 	if (prev_value != null && value != null) {
 		if (value != prev_value) {
-			onChange?.();
-			await (await getThread(message)).send(getDiscordMessagePrefix(`:${emoji}: ${display_name}: **${value}**`));
-			await message.edit(Messages.streamStart(channel.user, stream, entry, ping_role_id));
+			var value_display = value;
+			if (entry_name === "game_name") value_display = Messages.translateToRU_gameName(value_display);
+			await (await getThread(message)).send(getDiscordMessagePrefix(`:${emoji}: ${display_name}: **${value_display}**`));
 
-			L.info(`Got changed entry!`, {user: entry.user_name, entry_name, prev_value, new_value: value});
+			// if is here because we dont need to update the message when not passing previous entry
+			if (prev_entry != null) {
+				onChange?.();
+				await message.edit(Messages.streamStart(channel.user, stream, entry, ping_role_id));
+				L.info(`Got changed entry!`, {user: entry.user_name, entry_name, prev_value, new_value: value});
+			}
 		}
 	} else {
-		let why = []; if (prev_value == null) why.push('prevValue'); if (value == null) why.push('value');
+		const why = []; if (prev_value == null) why.push('prevValue'); if (value == null) why.push('value');
 		L.error('Can\'t compare previous value and new value!', {user: entry.user_name, entry_name, prev_value, new_value: value}, why.join(' / ') + ' is null');
 	}
 }
-async function checkForStreamChanges(channel: Types.Channel, stream: Types.Stream.Live, discord_category_id: string, discord_message_id: string, ping_role_id: string | null, prev_entry: ResponseBody.GetStreams["data"][0], entry: ResponseBody.GetStreams["data"][0]) {
+async function checkForStreamChanges(channel: Types.Channel, stream: Types.Stream.Live, discord_category_id: string, discord_message_id: string, ping_role_id: string | null, entry: ResponseBody.GetStreams["data"][0], prev_entry?: ResponseBody.GetStreams["data"][0]) {
 	const message = await getDiscordMessageByID(discord_category_id, discord_message_id);
 	if (message === ErrorMessages.CHANNEL_NOT_FOUND || message === ErrorMessages.CHANNEL_WRONG_TYPE || message === ErrorMessages.MESSAGE_NOT_FOUND)
 		return L.error(`Tried to get Discord.TextChannel`, {channel: channel.user.login}, message);
 
-	await checkForStreamChange(channel, stream, ping_role_id, message, prev_entry, entry, "title",        "speech_left",        "Название стрима");
-	await checkForStreamChange(channel, stream, ping_role_id, message, prev_entry, entry, "game_name",    "video_game",         "Текущая игра", () => stream.games.push(entry.game_name));
-	await checkForStreamChange(channel, stream, ping_role_id, message, prev_entry, entry, "viewer_count", "bust_in_silhouette", "Зрителей");
+	await checkForStreamChange(channel, stream, ping_role_id, message, entry, prev_entry, "title",        "speech_left",        "Название стрима");
+	await checkForStreamChange(channel, stream, ping_role_id, message, entry, prev_entry, "game_name",    "video_game",         "Текущая игра", () => stream.games.push(entry.game_name));
+	await checkForStreamChange(channel, stream, ping_role_id, message, entry, prev_entry, "viewer_count", "bust_in_silhouette", "Зрителей");
 }
 
 export async function createDiscordNewsChannel(guild_discord: string | Discord.Guild, guild: Types.Guild, channel: Types.Channel): Promise<Discord.NewsChannel | ErrorMessages.GUILD_NOT_FOUND> {
@@ -526,11 +536,23 @@ export async function addTwitchChannelInData(guild: Types.Guild, channel: Types.
 }
 /** 
  * - needs `data.guildsSave()` after this
+ * - needs `data.globalSave()` after this, if this method returns `true`
  * - needs `changeStateEventSub()` after this
  */
 export async function removeTwitchChannelInData(guild: Types.Guild, channel: Types.Channel) {
 	delete guild.channels[channel.user.id];
-	return await removeTwitchChannelInEventSub(channel);
+	var result = true;
+	for (const guild of Object.values(data.guilds)) for (const ch_id of Object.keys(guild.channels))
+		if (ch_id === channel.user.id) {
+			result = false;
+			break;
+		}
+
+	if (result)
+		delete data.global.channels[channel.user.id];
+
+	await removeTwitchChannelInEventSub(channel);
+	return result;
 }
 
 /** 
@@ -545,14 +567,12 @@ async function addTwitchChannelInEventSub(channel: Types.Channel) {
 	if (!response.ok)
 		return L.error("EventSub subscription failed!", {channel: channel.user.login, subscription: subscription.type, code: response.status}, response.message);
 	channel.subscriptions_id.push(response.data.id);
-	subscriptions_id.push(response.data.id);
 
 	const subscription2 = EventSub.Subscription.StreamOffline(connection, channel.user.id);
 	const response2 = await Request.CreateEventSubSubscription(authorization, subscription2);
 	if (!response2.ok)
 		return L.error("EventSub subscription failed!", {channel: channel.user.login, subscription: subscription2.type, code: response2.status}, response2.message);
 	channel.subscriptions_id.push(response2.data.id);
-	subscriptions_id.push(response2.data.id);
 
 	return true;
 }
@@ -561,34 +581,52 @@ async function addTwitchChannelInEventSub(channel: Types.Channel) {
  * - needs `changeStateEventSub()` after this
  */
 async function removeTwitchChannelInEventSub(channel: Types.Channel) {
-	for (let id of channel.subscriptions_id) {
+	for (const id of channel.subscriptions_id) {
 		const response = await Request.DeleteEventSubSubscription(authorization, id);
 		if (!response.ok)
 			return L.error("EventSub unsubscribing failed!", {channel: channel.user.login, id, code: response.status}, response.message);
-		subscriptions_id.splice(subscriptions_id.indexOf(id), 1);
 		channel.subscriptions_id.splice(channel.subscriptions_id.indexOf(id), 1);
 	}
 
 	return true;
 }
+/**
+ * - needs `data.globalSave()` after this
+ */
 export async function changeStateEventSub() {
-	if (subscriptions_id.length > 0) {
+	if (Object.keys(data.global.channels).length > 0) {
 		connection = EventSub.startWebSocket(authorization);
-		await new Promise<void>(resolve => connection!.onSessionWelcome = async(message, is_reconnected) => resolve());
-
 		connection.onSessionWelcome = async(message, is_reconnected) => {
-			L.info("EventSub session reconnected", {url: connection!.ws.url});
+			L.info(`EventSub session ${is_reconnected ? "re" : ""}connected`, {url: connection!.ws.url});
+			if (!is_reconnected) {
+				for (const channel of Object.values(data.global.channels)) {
+					for (const id of channel.subscriptions_id) {
+						await Request.DeleteEventSubSubscription(authorization, id);
+						channel.subscriptions_id.shift();
+					}
+					await addTwitchChannelInEventSub(channel);
+				}
+				data.globalSave();
+			}
 		};
 		connection.onNotification = async(message) => {
 			if (EventSub.Message.Notification.isStreamOnline(message)) onStreamOnline(message.payload.event);
 			else if (EventSub.Message.Notification.isStreamOffline(message)) onStreamOffline(message.payload.event);
 		};
-		L.info("EventSub session started, ready for subscribing events", {url: connection.ws.url});
+		connection.onRevocation = async(message) => {
+			L.error("EventSub subscription was revocated", { event: `${message.payload.subscription.type} version ${message.payload.subscription.version}`, condition: message.payload.subscription.condition, reason: message.payload.subscription.status });
+			process.exit(1);
+		};
 	}
 	else if (connection) {
-		connection.ws.onclose = () => {};
-		connection.ws.close();
+		await connection.close();
 		connection = null;
+		for (const channel of Object.values(data.global.channels))
+			if (channel.subscriptions_id.length > 0) channel.subscriptions_id.pop();
 		L.info("EventSub session was closed because there is no channels to subscribe");
 	}
+}
+
+function nullifyString(str: string, length: number = 1): string | null {
+	return str.length < 1 ? null : str;
 }
