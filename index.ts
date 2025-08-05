@@ -81,8 +81,7 @@ export async function main() {
 	.addValue('twitchClientID', '', 'twitch app client id: https://dev.twitch.tv/console/apps')
 	.addValue('twitchClientSecret', '', 'twitch app client secret: https://dev.twitch.tv/console/apps')
 	.addValue('twitchClientRedirectURL', '', 'twitch app redirect url: https://dev.twitch.tv/console/apps')
-	.addValue('twitchAuthorizationCode', '', 'run "node index.js twitch authorize", authorize app, get link which starts with redirect url of your app, copy symbols in link from ?code= to & and paste here')
-	.addValue('botCreatorDiscordID', '', 'discord profile id of person who created/hosting a bot (you!), allows to interact with module data (for ex. twitchAccessToken) by slash commands "/twitch config-secret-send" and "/twitch config-secret-set"');
+	.addValue('twitchAuthorizationCode', '', 'run "node index.js twitch authorize", authorize app, get link which starts with redirect url of your app, copy symbols in link from ?code to & and paste here');
 
 	client.on("guildCreate", guildCreate);
 	var is_first_ready = true;
