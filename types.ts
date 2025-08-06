@@ -15,6 +15,7 @@ export interface Guild {
 export interface GuildChannel {
 	discord_channel_id: string;
 	discord_message_id: string | null;
+	discord_message_thread_id: string | null; // used for changing timestamp of stream ended thread message
 }
 
 export interface Channel {

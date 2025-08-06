@@ -154,8 +154,8 @@ async function onFirstReady() {
 		await addTwitchChannelInEventSub(channel);
 	}
 	await changeStateEventSub();
-	data.globalSave();
 	data.guildsSave();
+	data.globalSave();
 	getStreamsPolling();
 }
 export async function guildCreate(guild: Discord.Guild) {
@@ -264,11 +264,11 @@ async function makeStreamOfflineMessage(channel: Types.Channel) {
 			continue;
 		}
 
-		await (await getThread(message)).send(getDiscordMessagePrefix(":red_circle: Стрим окончен", channel.stream.ended_at));
+		guild_channel.discord_message_thread_id = (await (await getThread(message)).send(getDiscordMessagePrefix(":red_circle: Стрим окончен", channel.stream.ended_at))).id;
 		await message.channel.setName(`『⚫』${channel.user.login}`);
 		await message.edit(Messages.streamEnd(channel.user, channel.stream, guild.ping_role_id));
 	}
-	data.globalSave();
+	data.guildsSave();
 	data.globalSave();
 	L.info(`Stream ended`, {channel: channel.user.login});
 }
@@ -316,24 +316,43 @@ async function getStreamsPolling() {
 				const entry = response.data[0];
 				if (entry?.stream_id && entry.stream_id === channel.stream.id) {
 					L.info(`Got VOD of stream`, {channel: channel.user.login, url: entry.url});
+
+					channel.stream.started_at = entry.created_at;
+					channel.stream.title = entry.title;
+					channel.stream.ended_at = new Date(new Date(entry.created_at).getTime() + Messages.iso8601ToDecimalTime(entry.duration)).toISOString();
+
 					for (const [guild_id, guild] of Object.entries(data.guilds)) {
 						const guild_channel = guild.channels[channel_id];
 						if (!guild_channel.discord_message_id)
 							return L.error(`Tried to get discord_message_id`, {channel: channel.user.login, method: `guilds_data["${guild_id}"].channels["${channel_id}"].discord_message_id`}, `Is null`);
 
 						const message = await getDiscordMessageByID(guild_channel.discord_channel_id, guild_channel.discord_message_id);
+
+						guild_channel.discord_message_id = null;
+
 						if (message === ErrorMessages.CHANNEL_NOT_FOUND || message === ErrorMessages.CHANNEL_WRONG_TYPE || message === ErrorMessages.MESSAGE_NOT_FOUND) {
 							L.error(`Tried to get Discord.Message<true>`, {channel: channel.user.login}, message);
 							continue;
 						}
 
-						channel.stream.started_at = entry.created_at;
-						channel.stream.title = entry.title;
-						channel.stream.ended_at = new Date(new Date(entry.created_at).getTime() + Messages.iso8601ToDecimalTime(entry.duration)).toISOString();
 						await message.edit(Messages.streamEndWithVOD(channel.user, channel.stream, entry, guild.ping_role_id));
-						await (await getThread(message)).send(getDiscordMessagePrefix(":vhs: Получена запись стрима"));
+
+						const thread = await getThread(message);
+						if (guild_channel.discord_message_thread_id) {
+							try {
+								const message = await thread.messages.fetch(guild_channel.discord_message_thread_id);
+								message.edit(getDiscordMessagePrefix(":red_circle: Стрим окончен", channel.stream.ended_at));
+							}
+							catch(e) {
+								L.error("Changing timestamp of stream ended thread message failed", { channel: `${channel.user.display_name} (${guild_id})` }, e);
+							}
+							guild_channel.discord_message_thread_id = null;
+						}
+						await thread.send(getDiscordMessagePrefix(":vhs: Получена запись стрима"));
 					}
 					channel.stream = { status: "offline" };
+					data.guildsSave();
+					data.globalSave();
 				}
 			}
 			else if (channel.stream.tries_to_get < 0) {
@@ -344,8 +363,10 @@ async function getStreamsPolling() {
 						return L.error(`Tried to get discord_message_id`, {channel: channel.user.login, method: `guilds_data["${guild_id}"].channels["${channel_id}"].discord_message_id`}, `Is null`);
 
 					const message = await getDiscordMessageByID(guild_channel.discord_channel_id, guild_channel.discord_message_id);
+
 					guild_channel.discord_message_id = null;
-					channel.stream = { status: "offline" };
+					guild_channel.discord_message_thread_id = null;
+
 					if (message === ErrorMessages.CHANNEL_NOT_FOUND || message === ErrorMessages.CHANNEL_WRONG_TYPE || message === ErrorMessages.MESSAGE_NOT_FOUND) {
 						L.error(`Tried to get Discord.Message<true>`, {channel: channel.user.login}, message);
 						continue;
@@ -353,8 +374,10 @@ async function getStreamsPolling() {
 
 					await (await getThread(message)).send(getDiscordMessagePrefix(":x: Запись стрима не была найдена, возможно записи были скрыты стримером"));
 				}
+				channel.stream = { status: "offline" };
+				data.guildsSave();
+				data.globalSave();
 			}
-			data.globalSave();
 		}
 	}
 
@@ -542,7 +565,8 @@ export async function createDiscordCategoryChannel(guild_discord: string | Disco
 export async function addTwitchChannelInData(guild: Types.Guild, channel: Types.Channel, discord_channel_id: string) {
 	guild.channels[channel.user.id] = {
 		discord_channel_id,
-		discord_message_id: null
+		discord_message_id: null,
+		discord_message_thread_id: null
 	};
 	data.global.channels[channel.user.id] = channel;
 
