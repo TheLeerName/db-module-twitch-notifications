@@ -25,6 +25,7 @@ export const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	const start = Date.now();
 	await interaction.deferReply();
 	const value = interaction.options.getString('channel')!;
 	try {
@@ -52,7 +53,7 @@ export const command = new SlashSubcommand()
 		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:white_check_mark: Twitch-канал ${channel.user.display_name} был успешно удалён из оповещений!`)
 			.setColor("#77b255")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]});
 		L.info(`Command twitch channel-remove success`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value });
 	} catch(e) {
@@ -61,7 +62,7 @@ export const command = new SlashSubcommand()
 			.setTitle(`:x: Ошибка!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]});
 		L.error(`Command twitch channel-remove failed`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value }, error);
 	}

@@ -32,6 +32,7 @@ const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	const start = Date.now();
 	await interaction.deferReply();
 	const value = interaction.options.getString('channel')!;
 	try {
@@ -44,7 +45,7 @@ const command = new SlashSubcommand()
 				return await interaction.editReply({embeds: [new EmbedBuilder()
 					.setTitle(`:x: Данная ошибка логически и теоретически не возможна, но сервер на котором я нахожусь не найден!`)
 					.setColor("#dd2e44")
-					.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+					.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 				]});
 			guild.discord_category_id = category.id;
 		}
@@ -59,13 +60,13 @@ const command = new SlashSubcommand()
 				.setTitle(`:x: Ошибка ${response.status}`)
 				.setDescription(`\`\`\`\n${response.message}\n\`\`\``)
 				.setColor("#dd2e44")
-				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 			]});
 		if (response.data.length === 0)
 			return await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не был найден!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 			]});
 
 		const channel: Channel = {
@@ -80,7 +81,7 @@ const command = new SlashSubcommand()
 			return await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал уже был добавлен!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 			]});
 		}
 
@@ -89,7 +90,7 @@ const command = new SlashSubcommand()
 			return await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Данная ошибка логически и теоретически не возможна, но сервер на котором я нахожусь не найден!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 			]});
 
 		await Main.addTwitchChannelInData(guild, channel, channel_discord.id);
@@ -123,7 +124,7 @@ const command = new SlashSubcommand()
 				}
 			)
 			.setColor("#77b255")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]};
 		if (channel.user.description.length > 0) msg.embeds[0].setDescription(channel.user.description);
 		if (channel.user.offline_image_url.length > 0) msg.embeds[0].setImage(channel.user.offline_image_url);
@@ -136,7 +137,7 @@ const command = new SlashSubcommand()
 			.setTitle(`:x: Ошибка!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]});
 		L.error(`Command twitch channel-add failed`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value }, error);
 	}

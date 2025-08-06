@@ -24,6 +24,7 @@ const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	const start = Date.now();
 	await interaction.deferReply();
 	const value = interaction.options.getString('channel')!;
 	try {
@@ -40,7 +41,7 @@ const command = new SlashSubcommand()
 			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не был добавлен в бота!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 			]});
 			return;
 		}
@@ -83,7 +84,7 @@ const command = new SlashSubcommand()
 			.setThumbnail(channel.user.profile_image_url)
 			.setFields(...fields)
 			.setColor("#77b255")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]};
 		if (channel.user.description.length > 0) msg.embeds[0].setDescription(channel.user.description);
 		if (channel.user.offline_image_url.length > 0) msg.embeds[0].setImage(channel.user.offline_image_url);
@@ -95,7 +96,7 @@ const command = new SlashSubcommand()
 			.setTitle(`:x: Ошибка!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]});
 		L.error(`Command twitch channel-send failed`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value }, error);
 	}

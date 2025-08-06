@@ -19,6 +19,7 @@ const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	const start = Date.now();
 	await interaction.deferReply({ flags: "Ephemeral" });
 	try {
 		if (botCreatorDiscordID.length === 0)
@@ -27,7 +28,7 @@ const command = new SlashSubcommand()
 			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Доступ запрещён. Вы не создатель бота!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 			]});
 			return;
 		}
@@ -116,7 +117,7 @@ const command = new SlashSubcommand()
 				}
 			)
 			.setColor("#77b255")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]});
 
 		L.info(`Command twitch debug-send success`, { user: `${interaction.user.username} (${interaction.guild.name})` });
@@ -126,7 +127,7 @@ const command = new SlashSubcommand()
 			.setTitle(`:x: Ошибка!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]});
 		L.error(`Command twitch debug-send failed`, { user: `${interaction.user.username} (${interaction.guild.name})` }, error);
 	}

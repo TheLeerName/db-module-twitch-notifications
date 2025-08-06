@@ -12,6 +12,7 @@ const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	const start = Date.now();
 	await interaction.deferReply();
 	const channel_discord = interaction.options.getChannel('category') as CategoryChannel;
 	try	{
@@ -22,7 +23,7 @@ const command = new SlashSubcommand()
 		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:white_check_mark: Успешно!`)
 			.setColor("#77b255")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]});
 		L.info(`Command twitch set-category success`, { user: `${interaction.user.username} (${interaction.guild.name})`, category: channel_discord.name });
 	} catch(e) {
@@ -31,7 +32,7 @@ const command = new SlashSubcommand()
 			.setTitle(`:x: Произошла ошибка при изменении параметра!`)
 			.setDescription(`\`\`\`\n${e}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
 		]});
 		L.error(`Command twitch set-category failed`, { user: `${interaction.user.username} (${interaction.guild.name})`, category: channel_discord.name }, error);
 	}
