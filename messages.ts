@@ -36,13 +36,20 @@ function gamesToHumanReadable(arr: string[], lastToBeChoosed: boolean = true): s
 	return str;
 }
 
-/** @param decimal milliseconds */
+/** converts from milliseconds and returns HH:MM:SS */
 function decimalTimeToHumanReadable(decimal: number): string {
 	decimal /= 1000;
 	var h = Math.floor(decimal / 3600) + "";
 	var m = Math.floor((decimal % 3600) / 60) + "";
 	var s = Math.floor(decimal % 60) + "";
 	return (h.length < 2 ? "0" + h : h) + ":" + (m.length < 2 ? "0" + m : m) + ":" + (s.length < 2 ? "0" + s : s);
+}
+/** converts from ISO 8601 format to milliseconds, doesnt support days and greater */
+export function iso8601ToDecimalTime(duration: string): number {
+	const match = duration.match(/P(?:([0-9]+)D)?T(?:([0-9]+)H)?(?:([0-9]+)M)?(?:([0-9]+)S)?/);
+	if (!match) return 0;
+	const days = parseInt(match[1] || '0'); const hours = parseInt(match[2] || '0'); const minutes = parseInt(match[3] || '0'); const seconds = parseInt(match[4] || '0');
+	return (days * 86400000 + hours * 3600000 + minutes * 60000 + seconds * 1000);
 }
 
 function getVODSavingTime(broadcaster_type: ResponseBody.GetUsers["data"][0]["broadcaster_type"]): number {

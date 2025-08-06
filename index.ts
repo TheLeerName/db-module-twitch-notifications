@@ -327,6 +327,9 @@ async function getStreamsPolling() {
 							continue;
 						}
 
+						channel.stream.started_at = entry.created_at;
+						channel.stream.title = entry.title;
+						channel.stream.ended_at = new Date(new Date(entry.created_at).getTime() + Messages.iso8601ToDecimalTime(entry.duration)).toISOString();
 						await message.edit(Messages.streamEndWithVOD(channel.user, channel.stream, entry, guild.ping_role_id));
 						await (await getThread(message)).send(getDiscordMessagePrefix(":vhs: Получена запись стрима"));
 					}
