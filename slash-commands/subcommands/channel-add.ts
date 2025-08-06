@@ -32,6 +32,7 @@ const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	await interaction.deferReply();
 	const value = interaction.options.getString('channel')!;
 	try {
 		if (value.length < 1) throw new Error("Параметр value не указан");
@@ -40,10 +41,10 @@ const command = new SlashSubcommand()
 		if (guild.discord_category_id == null) {
 			const category = await Main.createDiscordCategoryChannel(interaction.guild);
 			if (category === Main.ErrorMessages.GUILD_NOT_FOUND)
-				return await interaction.reply({embeds: [new EmbedBuilder()
+				return await interaction.editReply({embeds: [new EmbedBuilder()
 					.setTitle(`:x: Данная ошибка логически и теоретически не возможна, но сервер на котором я нахожусь не найден!`)
 					.setColor("#dd2e44")
-					.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+					.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 				]});
 			guild.discord_category_id = category.id;
 		}
@@ -54,17 +55,17 @@ const command = new SlashSubcommand()
 			response = await Request.GetUsers(Main.authorization, Main.isNumber(value) ? {id: value} : {login: value});
 		}
 		if (!response.ok)
-			return await interaction.reply({embeds: [new EmbedBuilder()
+			return await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Ошибка ${response.status}`)
 				.setDescription(`\`\`\`\n${response.message}\n\`\`\``)
 				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 		if (response.data.length === 0)
-			return await interaction.reply({embeds: [new EmbedBuilder()
+			return await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не был найден!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 
 		const channel: Channel = {
@@ -76,19 +77,19 @@ const command = new SlashSubcommand()
 		};
 
 		if (guild.channels[channel.user.id] != null) {
-			return await interaction.reply({embeds: [new EmbedBuilder()
+			return await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал уже был добавлен!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 		}
 
 		const channel_discord = await Main.createDiscordNewsChannel(interaction.guild, guild, channel);
 		if (channel_discord === Main.ErrorMessages.GUILD_NOT_FOUND)
-			return await interaction.reply({embeds: [new EmbedBuilder()
+			return await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Данная ошибка логически и теоретически не возможна, но сервер на котором я нахожусь не найден!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 
 		await Main.addTwitchChannelInData(guild, channel, channel_discord.id);
@@ -122,20 +123,20 @@ const command = new SlashSubcommand()
 				}
 			)
 			.setColor("#77b255")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 		]};
 		if (channel.user.description.length > 0) msg.embeds[0].setDescription(channel.user.description);
 		if (channel.user.offline_image_url.length > 0) msg.embeds[0].setImage(channel.user.offline_image_url);
-		await interaction.reply(msg);
+		await interaction.editReply(msg);
 
 		L.info(`Command twitch channel-add success`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value });
 	} catch(e) {
 		const error = e as Error;
-		await interaction.reply({embeds: [new EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Ошибка!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 		]});
 		L.error(`Command twitch channel-add failed`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value }, error);
 	}

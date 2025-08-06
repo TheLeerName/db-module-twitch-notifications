@@ -11,9 +11,10 @@ const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	await interaction.deferReply();
 	try {
 		const guild = Main.data.guilds[interaction.guild.id] ?? await Main.guildCreate(interaction.guild);
-		await interaction.reply({embeds: [new EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:notepad_spiral: Параметры сервера ${interaction.guild.name}`)
 			.setFields(
 				{
@@ -30,16 +31,16 @@ const command = new SlashSubcommand()
 				}
 			)
 			.setColor("#77b255")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 		]});
 		L.info(`Command twitch send success`, { user: `${interaction.user.username} (${interaction.guild.name})` });
 	} catch(e) {
 		const error = e as Error;
-		await interaction.reply({embeds: [new EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Произошла ошибка при отправлении параметров сервера!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 		]});
 		L.error(`Command twitch send failed`, { user: `${interaction.user.username} (${interaction.guild.name})` }, error);
 	}

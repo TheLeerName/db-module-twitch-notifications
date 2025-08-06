@@ -25,6 +25,7 @@ export const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	await interaction.deferReply();
 	const value = interaction.options.getString('channel')!;
 	try {
 		if (value.length < 1) throw new Error("Параметр channel не указан");
@@ -48,19 +49,19 @@ export const command = new SlashSubcommand()
 		Main.data.globalSave();
 		Main.data.guildsSave();
 
-		await interaction.reply({embeds: [new EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:white_check_mark: Twitch-канал ${channel.user.display_name} был успешно удалён из оповещений!`)
 			.setColor("#77b255")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 		]});
 		L.info(`Command twitch channel-remove success`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value });
 	} catch(e) {
 		const error = e as Error;
-		await interaction.reply({embeds: [new EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Ошибка!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 		]});
 		L.error(`Command twitch channel-remove failed`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value }, error);
 	}

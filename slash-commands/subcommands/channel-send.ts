@@ -24,6 +24,7 @@ const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	await interaction.deferReply();
 	const value = interaction.options.getString('channel')!;
 	try {
 		if (value.length < 1) throw new Error("Параметр value не указан");
@@ -36,10 +37,10 @@ const command = new SlashSubcommand()
 				channel = ch;
 		}
 		if (channel == null) {
-			await interaction.reply({embeds: [new EmbedBuilder()
+			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не был добавлен в бота!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 			return;
 		}
@@ -82,19 +83,19 @@ const command = new SlashSubcommand()
 			.setThumbnail(channel.user.profile_image_url)
 			.setFields(...fields)
 			.setColor("#77b255")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 		]};
 		if (channel.user.description.length > 0) msg.embeds[0].setDescription(channel.user.description);
 		if (channel.user.offline_image_url.length > 0) msg.embeds[0].setImage(channel.user.offline_image_url);
-		await interaction.reply(msg);
+		await interaction.editReply(msg);
 		L.info(`Command twitch channel-send success`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value });
 	} catch(e) {
 		const error = e as Error;
-		await interaction.reply({embeds: [new EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Ошибка!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 		]});
 		L.error(`Command twitch channel-send failed`, { user: `${interaction.user.username} (${interaction.guild.name})`, channel: value }, error);
 	}

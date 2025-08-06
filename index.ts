@@ -51,7 +51,7 @@ export const authorization: Authorization.User = {
 	user_login: "",
 	user_id: ""
 };
-var connection: EventSub.Connection | null;
+export var connection: EventSub.Connection | null;
 var client_secret: string = "";
 var redirect_url: string = "";
 var initialized = false;
@@ -433,7 +433,7 @@ export async function getDiscordMessageByID(discord_channel_id: string, discord_
 	if (message == null) return ErrorMessages.MESSAGE_NOT_FOUND;
 	return message;
 }
-export async function getThread(message: Discord.Message<true>) {
+export async function getThread(message: Discord.Message<boolean>) {
 	return message.thread ?? await message.startThread({name: 'Логи'});
 }
 

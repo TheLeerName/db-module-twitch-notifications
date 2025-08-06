@@ -1,8 +1,10 @@
 import { SlashSubcommand, humanizeDuration } from '../../../../core/slash-commands';
-import { data, config_section } from '../../index';
+import { config } from '../../../../core';
+import { data, config_section, authorization, refreshToken, connection } from '../../index';
 import * as L from '../../../../core/logger';
 import * as Main from '../../index';
 
+import { Request, ResponseBody } from 'twitch.ts';
 import { EmbedBuilder } from 'discord.js';
 
 export var botCreatorDiscordID: string = "";
@@ -17,19 +19,70 @@ const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	await interaction.deferReply({ flags: "Ephemeral" });
 	try {
-		if (botCreatorDiscordID.length == 0)
-			botCreatorDiscordID = config_section.getValue('botCreatorDiscordID')!;
+		if (botCreatorDiscordID.length === 0)
+			botCreatorDiscordID = config.getSection().getValue("botCreatorDiscordID")!;
 		if (botCreatorDiscordID.length > 0 && botCreatorDiscordID != interaction.user.id) {
-			await interaction.reply({embeds: [new EmbedBuilder()
+			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Доступ запрещён. Вы не создатель бота!`)
 				.setColor("#dd2e44")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 			return;
 		}
 
-		await interaction.reply({embeds: [new EmbedBuilder()
+		const response = await Request.OAuth2Validate(authorization);
+		if (!response.ok) await refreshToken();
+		var status = "Отключён";
+		if (connection) {
+			if (connection.ws.readyState === connection.ws.CONNECTING) {
+				status = "Подключение";
+			}
+			if (connection.ws.readyState === connection.ws.OPEN) {
+				const t = Date.now();
+				status = `Открыт, подключён через \`${connection.ws.url}\` уже ${humanizeDuration(t - connection.first_connected_timestamp)} (текущая сессия ${humanizeDuration(t - connection.getConnectedTimestamp())})`;
+
+				const subscriptions: Record<string, ResponseBody.GetEventSubSubscriptions["data"][0]> = {};
+				var cursor: string | undefined;
+				while(true) {
+					const response = await Request.GetEventSubSubscriptions(authorization, undefined, undefined, undefined, undefined, cursor);
+					if (response.ok) {
+						if (response.data.length > 0) {
+							response.data.forEach(s => subscriptions[s.id] = s);
+							if (response.pagination?.cursor) {
+								cursor = response.pagination.cursor;
+								await new Promise<void>(resolve => setTimeout(resolve, 500));
+								continue;
+							}
+						}
+					}
+					else {
+						cursor = undefined;
+						status += `, проверка подписок завершилась с кодом ${response.status} - ${response.message}`;
+						break;
+					}
+				}
+				if (cursor) {
+					status += `, проверка подписок завершилась успешно: `;
+					Object.values(data.global.channels).forEach(c => {
+						status += `${c.user.display_name} => `;
+						c.subscriptions_id.forEach(id => {
+							status += `\`${id}\` = \`"${subscriptions[id]?.status ?? "not_found_by_api"}"\`, `;
+						});
+						status = `${status.substring(0, status.length - 2)}; `;
+					});
+					status = status.substring(0, status.length - 2);
+				}
+			}
+			if (connection.ws.readyState === connection.ws.CLOSING) {
+				status = "Закрывается";
+			}
+			if (connection.ws.readyState === connection.ws.CLOSED) {
+				status = "Закрыт";
+			}
+		}
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:notepad_spiral: Параметры модуля "twitch-notifications"`)
 			.setFields(
 				{
@@ -41,23 +94,27 @@ const command = new SlashSubcommand()
 					value: `\`${data.global.refresh_token}\``
 				},
 				{
+					name: "Состояние EventSub",
+					value: status
+				},
+				{
 					name: "Сохранённых каналов",
 					value: `${Object.keys(data.global.channels).length}`
 				}
 			)
 			.setColor("#77b255")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		], flags: "Ephemeral"});
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+		]});
 
 		L.info(`Command twitch debug-send success`, { user: `${interaction.user.username} (${interaction.guild.name})` });
 	} catch(e) {
 		const error = e as Error;
-		await interaction.reply({embeds: [new EmbedBuilder()
+		await interaction.editReply({embeds: [new EmbedBuilder()
 			.setTitle(`:x: Ошибка!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
-		], flags: "Ephemeral"});
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
+		]});
 		L.error(`Command twitch debug-send failed`, { user: `${interaction.user.username} (${interaction.guild.name})` }, error);
 	}
 });

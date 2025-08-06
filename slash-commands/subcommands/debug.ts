@@ -1,4 +1,5 @@
 import { SlashSubcommand, humanizeDuration } from '../../../../core/slash-commands';
+import { config } from '../../../../core';
 import { data, config_section } from '../../index';
 import * as L from '../../../../core/logger';
 import * as Messages from '../../messages';
@@ -31,12 +32,13 @@ const command = new SlashSubcommand()
 .setChatInput(async(interaction) => {
 	if (interaction.guild == null) return;
 
+	await interaction.deferReply();
 	const type = interaction.options.getString("type")!;
 	const values = (interaction.options.getString("values") ?? "").split(";");
 	try {
 		if (type.length < 1) throw new Error("Параметр type не указан");
 		if (botCreatorDiscordID.length == 0)
-			botCreatorDiscordID = config_section.getValue('botCreatorDiscordID')!;
+			botCreatorDiscordID = config.getSection().getValue('botCreatorDiscordID')!;
 		if (botCreatorDiscordID.length > 0 && botCreatorDiscordID != interaction.user.id)
 			throw new Error("Вы не являетесь создателем бота");
 
@@ -53,9 +55,8 @@ const command = new SlashSubcommand()
 				viewer_count,
 				thumbnail_url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRKPg3Z19paW_g0iFfa5k0iJjFR4HKyAVkl6A&s"
 			});
-			const reply = await interaction.reply({ content: msg.content, embeds: msg.embeds, withResponse: true });
-			const message = reply.resource!.message as Message<true>;
-			const thread = await Main.getThread(message);
+			const reply = await interaction.editReply({ content: msg.content, embeds: msg.embeds });
+			const thread = await Main.getThread(reply);
 			await thread.send(Main.getDiscordMessagePrefix(`:speech_left: Название стрима: **${title}**`));
 			await thread.send(Main.getDiscordMessagePrefix(`:video_game: Текущая игра: **${games[games.length - 1]}**`));
 			await thread.send(Main.getDiscordMessagePrefix(`:bust_in_silhouette: Зрителей: **${viewer_count}**`));
@@ -76,10 +77,10 @@ const command = new SlashSubcommand()
 				viewer_count,
 				thumbnail_url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRKPg3Z19paW_g0iFfa5k0iJjFR4HKyAVkl6A&s"
 			}));
-			await interaction.reply({embeds: [new EmbedBuilder()
+			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:white_check_mark: Успешно!`)
 				.setColor("#77b255")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 		}
 		else if (type === "testmessagechangetitle") {
@@ -98,10 +99,10 @@ const command = new SlashSubcommand()
 				viewer_count,
 				thumbnail_url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRKPg3Z19paW_g0iFfa5k0iJjFR4HKyAVkl6A&s"
 			}));
-			await interaction.reply({embeds: [new EmbedBuilder()
+			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:white_check_mark: Успешно!`)
 				.setColor("#77b255")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 		}
 		else if (type === "testmessagechangegame") {
@@ -120,10 +121,10 @@ const command = new SlashSubcommand()
 				viewer_count,
 				thumbnail_url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRKPg3Z19paW_g0iFfa5k0iJjFR4HKyAVkl6A&s"
 			}));
-			await interaction.reply({embeds: [new EmbedBuilder()
+			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:white_check_mark: Успешно!`)
 				.setColor("#77b255")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 		}
 		else if (type === "testmessageendstream") {
@@ -137,10 +138,10 @@ const command = new SlashSubcommand()
 				started_at,
 				ended_at: new Date().toISOString()
 			}));
-			await interaction.reply({embeds: [new EmbedBuilder()
+			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:white_check_mark: Успешно!`)
 				.setColor("#77b255")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 			await (await Main.getThread(message)).send(Main.getDiscordMessagePrefix(":red_circle: Стрим окончен"));
 		}
@@ -157,10 +158,10 @@ const command = new SlashSubcommand()
 			}, {
 				url: "https://www.youtube.com/watch?v=eTplxWaAD8o"
 			}));
-			await interaction.reply({embeds: [new EmbedBuilder()
+			await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:white_check_mark: Успешно!`)
 				.setColor("#77b255")
-				.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 			]});
 			await (await Main.getThread(message)).send(Main.getDiscordMessagePrefix(":vhs: Получена запись стрима"));
 		}
@@ -174,7 +175,7 @@ const command = new SlashSubcommand()
 			.setTitle(`:x: Ошибка!`)
 			.setDescription(`\`\`\`\n${error.message}\n\`\`\``)
 			.setColor("#dd2e44")
-			.setFooter({text: `Пинг: ${humanizeDuration(interaction.createdTimestamp - Date.now())}`})
+			.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - interaction.createdTimestamp)}`})
 		]});
 		L.error(`Command twitch debug failed`, { user: `${interaction.user.username} (${interaction.guild.name})`, type, values: values.join(";") }, error);
 	}
