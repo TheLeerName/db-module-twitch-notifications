@@ -139,6 +139,14 @@ async function onFirstReady() {
 	for (const [channel_id, channel] of Object.entries(data.global.channels)) {
 		const entry = response_record[channel_id];
 		if (entry != null) polling_channels_id.push(channel_id);
+
+		// checking if streamer is became online/offline while bot was offline
+		if (channel.stream.status !== "live" && entry)
+			makeStreamOnlineMessage(channel, entry);
+		if (channel.stream.status === "live" && !entry)
+			makeStreamOfflineMessage(channel);
+
+		// removing previous subscriptions
 		for (const id of channel.subscriptions_id) {
 			await Request.DeleteEventSubSubscription(authorization, id);
 			channel.subscriptions_id.shift();
