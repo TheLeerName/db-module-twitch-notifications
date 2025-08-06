@@ -440,18 +440,22 @@ export async function getThread(message: Discord.Message<true>) {
 export function getDiscordMessagePrefix(add: string | null, date?: string | null): string {
   	return `<t:${Math.floor((new Date(date ?? Date.now())).getTime() / 1000)}:t> | ${add ?? ''}`;
 }
-async function checkForStreamChange(channel: Types.Channel, stream: Types.Stream.Live, ping_role_id: string | null, message: Discord.Message<true>, entry: ResponseBody.GetStreams["data"][0], prev_entry: ResponseBody.GetStreams["data"][0] | undefined, entry_name: string, emoji: string, display_name: string, onChange?: ()=>void) {
+async function checkForStreamChange(channel: Types.Channel, stream: Types.Stream.Live, ping_role_id: string | null, message: Discord.Message<true>, entry: ResponseBody.GetStreams["data"][0], prev_entry: ResponseBody.GetStreams["data"][0] | undefined, entry_name: string, emoji: string, display_name: string) {
 	const value = Reflect.get(entry, entry_name);
 	const prev_value = prev_entry != null ? Reflect.get(prev_entry, entry_name) : {};
 	if (prev_value != null && value != null) {
 		if (value != prev_value) {
 			var value_display = value;
-			if (entry_name === "game_name") value_display = Messages.translateToRU_gameName(value_display);
+			if (entry_name === "game_name")
+				value_display = Messages.translateToRU_gameName(value_display);
 			await (await getThread(message)).send(getDiscordMessagePrefix(`:${emoji}: ${display_name}: **${value_display}**`));
 
 			// if is here because we dont need to update the message when not passing previous entry
 			if (prev_entry != null) {
-				onChange?.();
+				if (entry_name === "game_name") stream.games.push(value);
+				else if (entry_name === "title") stream.title = value;
+				data.globalSave();
+
 				await message.edit(Messages.streamStart(channel.user, stream, entry, ping_role_id));
 				L.info(`Got changed entry!`, {user: entry.user_name, entry_name, prev_value, new_value: value});
 			}
@@ -467,7 +471,7 @@ async function checkForStreamChanges(channel: Types.Channel, stream: Types.Strea
 		return L.error(`Tried to get Discord.TextChannel`, {channel: channel.user.login}, message);
 
 	await checkForStreamChange(channel, stream, ping_role_id, message, entry, prev_entry, "title",        "speech_left",        "Название стрима");
-	await checkForStreamChange(channel, stream, ping_role_id, message, entry, prev_entry, "game_name",    "video_game",         "Текущая игра", () => stream.games.push(entry.game_name));
+	await checkForStreamChange(channel, stream, ping_role_id, message, entry, prev_entry, "game_name",    "video_game",         "Текущая игра");
 	await checkForStreamChange(channel, stream, ping_role_id, message, entry, prev_entry, "viewer_count", "bust_in_silhouette", "Зрителей");
 }
 
