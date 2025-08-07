@@ -50,18 +50,7 @@ const command = new SlashSubcommand()
 			guild.discord_category_id = category.id;
 		}
 
-		var response = await Request.GetUsers(Main.authorization, Main.isNumber(value) ? {id: value} : {login: value});
-		if (!response.ok && response.status === 401) {
-			await Main.refreshToken();
-			response = await Request.GetUsers(Main.authorization, Main.isNumber(value) ? {id: value} : {login: value});
-		}
-		if (!response.ok)
-			return await interaction.editReply({embeds: [new EmbedBuilder()
-				.setTitle(`:x: Ошибка ${response.status}`)
-				.setDescription(`\`\`\`\n${response.message}\n\`\`\``)
-				.setColor("#dd2e44")
-				.setFooter({text: `Время обработки: ${humanizeDuration(Date.now() - start)}`})
-			]});
+		const response = await Main.runRequestWithTokenRefreshing(Request.GetUsers, Main.authorization, Main.isNumber(value) ? {id: value} : {login: value});
 		if (response.data.length === 0)
 			return await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не был найден!`)
