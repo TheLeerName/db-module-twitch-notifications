@@ -44,12 +44,17 @@ function decimalTimeToHumanReadable(decimal: number): string {
 	var s = Math.floor(decimal % 60) + "";
 	return (h.length < 2 ? "0" + h : h) + ":" + (m.length < 2 ? "0" + m : m) + ":" + (s.length < 2 ? "0" + s : s);
 }
-/** converts from ISO 8601 format to milliseconds, doesnt support days and greater */
+const mults: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+/** converts from ISO 8601 format to milliseconds, doesnt support months and greater */
 export function iso8601ToDecimalTime(duration: string): number {
-	const match = duration.match(/P(?:([0-9]+)D)?T(?:([0-9]+)H)?(?:([0-9]+)M)?(?:([0-9]+)S)?/);
-	if (!match) return 0;
-	const days = parseInt(match[1] || '0'); const hours = parseInt(match[2] || '0'); const minutes = parseInt(match[3] || '0'); const seconds = parseInt(match[4] || '0');
-	return (days * 86400000 + hours * 3600000 + minutes * 60000 + seconds * 1000);
+	var seconds = 0;
+	while(true) {
+		const part = parseInt(duration);
+		duration = duration.substring(`${part}`.length);
+		if (!isNaN(part)) seconds += part * (mults[duration.charAt(0)] ?? 1);
+		else return seconds * 1000;
+		duration = duration.substring(1);
+	}
 }
 
 function getVODSavingTime(broadcaster_type: ResponseBody.GetUsers["data"][0]["broadcaster_type"]): number {
