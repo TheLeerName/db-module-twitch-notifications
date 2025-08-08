@@ -273,7 +273,19 @@ async function makeStreamOfflineMessage(channel: Types.Channel) {
 	L.info(`Stream ended`, {channel: channel.user.login});
 }
 
-export async function runRequestWithTokenRefreshing<R extends ResponseBody<true, number>, A extends any[]>(request: (...args: A)=>Promise<R | ResponseBodyError>, ...args: A): Promise<R> {
+export async function runRequestWithTokenRefreshing<R extends ResponseBody<true, number>, A extends any[]>(request: (...args: A)=>Promise<R | ResponseBodyError>, ...args: A): Promise<R | ResponseBodyError> {
+	return await new Promise(resolve => {
+		async function fun() {
+			const r = await request(...args);
+			if (r.ok || r.status !== 401) return resolve(r);
+
+			if (r.status === 401) await refreshToken();
+			setTimeout(fun, 1000);
+		}
+		fun();
+	});
+}
+export async function runRequestWithTokenRefreshingWithoutError<R extends ResponseBody<true, number>, A extends any[]>(request: (...args: A)=>Promise<R | ResponseBodyError>, ...args: A): Promise<R> {
 	return await new Promise(resolve => {
 		async function fun() {
 			const r = await request(...args);
@@ -292,7 +304,7 @@ var get_streams_prev: Record<string, ResponseBody.GetStreams["data"][0]> | null 
 var polling_timeout: NodeJS.Timeout | null = null;
 async function getStreamsPolling() {
 	if (polling_channels_id.length > 0) {
-		const get_streams: ResponseBody.GetStreams = await runRequestWithTokenRefreshing(Request.GetStreams, authorization, polling_channels_id, undefined, undefined, "live");
+		const get_streams: ResponseBody.GetStreams = await runRequestWithTokenRefreshingWithoutError(Request.GetStreams, authorization, polling_channels_id, undefined, undefined, "live");
 		const get_streams_record = arrayToRecord(get_streams.data, "user_id");
 
 		if (get_streams_prev) for (const guild of Object.values(data.guilds)) for (const [channel_id, guild_channel] of Object.entries(guild.channels)) {
@@ -311,7 +323,7 @@ async function getStreamsPolling() {
 		if (channel.stream.status === "getting_vod") {
 			channel.stream.tries_to_get--;
 
-			const response = await runRequestWithTokenRefreshing(Request.GetVideos, authorization, { user_id: channel_id }, undefined, undefined, "time", "archive", 1);
+			const response = await runRequestWithTokenRefreshingWithoutError(Request.GetVideos, authorization, { user_id: channel_id }, undefined, undefined, "time", "archive", 1);
 			if (response.data.length > 0) {
 				const entry = response.data[0];
 				if (entry?.stream_id && entry.stream_id === channel.stream.id) {
@@ -407,7 +419,7 @@ function initializeClient() {
 	}
 }
 export async function refreshToken() {
-	const response = await runRequestWithTokenRefreshing(Request.OAuth2Token.RefreshToken, authorization.client_id, client_secret, data.global.refresh_token);
+	const response = await runRequestWithTokenRefreshingWithoutError(Request.OAuth2Token.RefreshToken, authorization.client_id, client_secret, data.global.refresh_token);
 
 	data.global.access_token = response.access_token;
 	authorization.token = response.access_token;
@@ -430,7 +442,7 @@ function arrayToRecord<T extends {}>(array: T[], key: string): Record<string, T>
 }
 
 export async function getUser(channel: Types.Channel): Promise<ResponseBody.GetUsers["data"][0] | null> {
-	const response = await runRequestWithTokenRefreshing(Request.GetUsers, authorization, { id: channel.user.id });
+	const response = await runRequestWithTokenRefreshingWithoutError(Request.GetUsers, authorization, { id: channel.user.id });
 	if (response.data.length === 0) {
 		L.error(`Tried to get twitch user data`, {channel: channel.user.login, code: 404}, `Not found`);
 		return null;
@@ -590,11 +602,11 @@ async function addTwitchChannelInEventSub(channel: Types.Channel) {
 	if (!connection) return;
 
 	const subscription = EventSub.Subscription.StreamOnline(connection, channel.user.id);
-	const response = await runRequestWithTokenRefreshing(Request.CreateEventSubSubscription, authorization, subscription);
+	const response = await runRequestWithTokenRefreshingWithoutError(Request.CreateEventSubSubscription, authorization, subscription);
 	channel.subscriptions_id.push(response.data.id);
 
 	const subscription2 = EventSub.Subscription.StreamOffline(connection, channel.user.id);
-	const response2 = await runRequestWithTokenRefreshing(Request.CreateEventSubSubscription, authorization, subscription2);
+	const response2 = await runRequestWithTokenRefreshingWithoutError(Request.CreateEventSubSubscription, authorization, subscription2);
 	channel.subscriptions_id.push(response2.data.id);
 
 	return true;
@@ -606,6 +618,7 @@ async function addTwitchChannelInEventSub(channel: Types.Channel) {
 async function removeTwitchChannelInEventSub(channel: Types.Channel) {
 	for (const id of channel.subscriptions_id) {
 		const response = await runRequestWithTokenRefreshing(Request.DeleteEventSubSubscription, authorization, id);
+		if (!response.ok) L.error("Removing event subscription failed", { channel: channel.user.display_name, id }, `${response.status}${response.message ? ` - ${response.message}` : ""}`);
 		channel.subscriptions_id.splice(channel.subscriptions_id.indexOf(id), 1);
 	}
 
@@ -622,7 +635,8 @@ export async function changeStateEventSub() {
 			if (!is_reconnected) {
 				for (const channel of Object.values(data.global.channels)) {
 					for (const id of channel.subscriptions_id) {
-						await runRequestWithTokenRefreshing(Request.DeleteEventSubSubscription, authorization, id);
+						const response = await runRequestWithTokenRefreshing(Request.DeleteEventSubSubscription, authorization, id);
+						if (!response.ok) L.error("Removing event subscription failed", { channel: channel.user.display_name, id }, `${response.status}${response.message ? ` - ${response.message}` : ""}`);
 						channel.subscriptions_id.shift();
 					}
 					await addTwitchChannelInEventSub(channel);
@@ -637,6 +651,9 @@ export async function changeStateEventSub() {
 		connection.onRevocation = async(message) => {
 			L.error("EventSub subscription was revocated", { event: `${message.payload.subscription.type} version ${message.payload.subscription.version}`, condition: message.payload.subscription.condition, reason: message.payload.subscription.status });
 			process.exit(1);
+		};
+		connection.onClose = async(code, reason) => {
+			L.error("EventSub session disconnected", { code, reason });
 		};
 	}
 	else if (connection) {

@@ -50,7 +50,7 @@ const command = new SlashSubcommand()
 			guild.discord_category_id = category.id;
 		}
 
-		const response = await Main.runRequestWithTokenRefreshing(Request.GetUsers, Main.authorization, Main.isNumber(value) ? {id: value} : {login: value});
+		const response = await Main.runRequestWithTokenRefreshingWithoutError(Request.GetUsers, Main.authorization, Main.isNumber(value) ? {id: value} : {login: value});
 		if (response.data.length === 0)
 			return await interaction.editReply({embeds: [new EmbedBuilder()
 				.setTitle(`:x: Указанный Twitch-канал не был найден!`)
