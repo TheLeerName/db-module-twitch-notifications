@@ -10,7 +10,7 @@ export function translateToRU_gameName(game_name: string): string {
 		case 'Just Chatting': return 'Общение';
 		case 'Games + Demos': return 'Игры и Демо';
 		case 'Politics': return 'Политика';
-		case 'Art': return 'Art';
+		case 'Art': return 'Искусство';
 		case 'Music': return 'Музыка';
 		case 'DJs': return 'Диджеи';
 		case 'Talk Shows & Podcasts': return 'Ток-шоу и подкасты';
