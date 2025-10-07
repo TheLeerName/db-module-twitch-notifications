@@ -4,7 +4,9 @@ import * as L from '../../../../core/logger';
 import * as Main from '../../index';
 import { Channel } from '../../types';
 
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, RestOrArray, APIApplicationCommandOptionChoice } from 'discord.js';
+
+type Mode = "remove_discord_channel" | "not_remove_discord_channel";
 
 export const command = new SlashSubcommand()
 .setName('channel-remove')
@@ -28,6 +30,7 @@ export const command = new SlashSubcommand()
 	const start = Date.now();
 	await interaction.deferReply();
 	const value = interaction.options.getString('channel')!;
+	const mode = interaction.options.getString('mode') as Mode;
 	try {
 		if (value.length < 1) throw new Error("Параметр channel не указан");
 
@@ -42,8 +45,8 @@ export const command = new SlashSubcommand()
 		if (channel == null) throw new Error("Указанный Twitch-канал не был добавлен в бота!");
 		const guild_channel = guild.channels[channel.user.id];
 
-		const channel_discord = await getDiscordChannelByID(guild_channel.discord_channel_id);
-		if (channel_discord) channel_discord.delete(`Удаление из модуля "twitch-notifications"`);
+		if (mode === "remove_discord_channel")
+			(await getDiscordChannelByID(guild_channel.discord_channel_id))?.delete(`Удаление из модуля "twitch-notifications"`);
 
 		await Main.removeTwitchChannelInData(guild, channel);
 		await Main.changeStateEventSub();
@@ -74,4 +77,23 @@ command.addStringOption(option => option
 	.setRequired(true)
 	.setAutocomplete(true)
 );
+const mode_choices: RestOrArray<APIApplicationCommandOptionChoice<Mode>> = [
+	{
+		name: "Do not remove discord channel",
+		name_localizations: { "ru": "Не удалять discord-канал" },
+		value: "not_remove_discord_channel"
+	},
+	{
+		name: "Remove discord channel",
+		name_localizations: { "ru": "Удалить discord-канал" },
+		value: "remove_discord_channel"
+	}
+];
+command.addStringOption(option => option
+	.setName('mode')
+	.setDescription('Removing mode')
+	.setDescriptionLocalization('ru', 'Режим удаления')
+	.setChoices(mode_choices)
+	.setRequired(true)
+)
 export default command;
