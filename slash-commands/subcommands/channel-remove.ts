@@ -10,8 +10,8 @@ type Mode = "remove_discord_channel" | "not_remove_discord_channel";
 
 export const command = new SlashSubcommand()
 .setName('channel-remove')
-.setDescription(`Removes Twitch channel from "${Main.module_name}" module. NOTE: removes a channel completely`)
-.setDescriptionLocalization('ru', `Удаляет Twitch-канал из модуля "${Main.module_name}". ВНИМАНИЕ: удаляет канал полностью`)
+.setDescription(`Removes Twitch channel from "${Main.module_name}" module`)
+.setDescriptionLocalization('ru', `Удаляет Twitch-канал из модуля "${Main.module_name}"`)
 .setAutocomplete(async(interaction) => {
 	if (interaction.guild == null) return;
 
