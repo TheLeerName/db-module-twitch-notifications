@@ -1,3 +1,5 @@
+# WIP, 2.0.0 version soon
+
 # Twitch Stream Notifications
 
 ## Notes
